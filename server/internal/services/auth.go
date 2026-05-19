@@ -1,0 +1,202 @@
+package services
+
+import (
+	"context"
+	"crypto/sha256"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
+	"github.com/telegramclone/server/internal/models"
+	"github.com/telegramclone/server/internal/repository"
+	"github.com/telegramclone/server/internal/utils"
+)
+
+var (
+	ErrNotVerified = errors.New("email not verified")
+)
+
+type AuthService struct {
+	users     *repository.UserRepository
+	otp       *repository.OTPRepository
+	authRedis *repository.AuthRedisRepository
+	jwt       *utils.JWTManager
+	email     *utils.EmailSender
+	refreshTTL time.Duration
+	devMode   bool
+}
+
+func NewAuthService(
+	users *repository.UserRepository,
+	otp *repository.OTPRepository,
+	authRedis *repository.AuthRedisRepository,
+	jwt *utils.JWTManager,
+	email *utils.EmailSender,
+	refreshTTL time.Duration,
+	devMode bool,
+) *AuthService {
+	return &AuthService{
+		users: users, otp: otp, authRedis: authRedis,
+		jwt: jwt, email: email, refreshTTL: refreshTTL, devMode: devMode,
+	}
+}
+
+type TokenPair struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+type VerifyCodeResult struct {
+	IsNewUser bool
+	User      *models.User
+	Tokens    *TokenPair
+}
+
+func (s *AuthService) SendCode(ctx context.Context, email string) error {
+	if err := s.otp.InvalidateOld(ctx, email); err != nil {
+		return err
+	}
+	code, err := utils.GenerateOTP()
+	if err != nil {
+		return err
+	}
+	expires := time.Now().Add(10 * time.Minute)
+	if _, err := s.otp.Create(ctx, email, code, expires); err != nil {
+		return err
+	}
+	if err := s.email.SendOTP(email, code); err != nil {
+		if s.devMode {
+			log.Info().Str("email", email).Str("otp", code).Msg("dev mode: OTP (email send failed)")
+			return nil
+		}
+		return fmt.Errorf("send otp email: %w", err)
+	}
+	if s.devMode {
+		log.Info().Str("email", email).Str("otp", code).Msg("dev mode: OTP sent")
+	}
+	return nil
+}
+
+func (s *AuthService) VerifyCode(ctx context.Context, email, code string) (*VerifyCodeResult, error) {
+	ok, err := s.otp.Verify(ctx, email, code)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, errors.New("invalid or expired OTP")
+	}
+
+	user, err := s.users.GetByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	if user != nil {
+		tokens, err := s.issueTokens(ctx, user.ID)
+		if err != nil {
+			return nil, err
+		}
+		return &VerifyCodeResult{IsNewUser: false, User: user, Tokens: tokens}, nil
+	}
+
+	if err := s.authRedis.MarkEmailVerified(ctx, email, 30*time.Minute); err != nil {
+		return nil, err
+	}
+	return &VerifyCodeResult{IsNewUser: true}, nil
+}
+
+func (s *AuthService) CompleteProfile(ctx context.Context, email, name, phone string, surname *string) (*models.User, *TokenPair, error) {
+	verified, err := s.authRedis.IsEmailVerified(ctx, email)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !verified {
+		return nil, nil, ErrNotVerified
+	}
+	existing, err := s.users.GetByEmail(ctx, email)
+	if err != nil {
+		return nil, nil, err
+	}
+	if existing != nil {
+		return nil, nil, errors.New("account already exists")
+	}
+	if phone == "" {
+		phone = placeholderPhone(email)
+	}
+	taken, err := s.users.ExistsByPhoneOrEmail(ctx, phone, email)
+	if err != nil {
+		return nil, nil, err
+	}
+	if taken {
+		return nil, nil, errors.New("phone already in use")
+	}
+
+	user := &models.User{
+		Phone:        phone,
+		Email:        email,
+		PasswordHash: "",
+		Name:         name,
+		Surname:      surname,
+		IsVerified:   true,
+	}
+	if err := s.users.Create(ctx, user); err != nil {
+		return nil, nil, err
+	}
+	_ = s.authRedis.ClearRegistration(ctx, email)
+
+	tokens, err := s.issueTokens(ctx, user.ID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return user, tokens, nil
+}
+
+func placeholderPhone(email string) string {
+	sum := sha256.Sum256([]byte(email))
+	// Unique synthetic phone for email-only sign-up (fits VARCHAR(32)).
+	return fmt.Sprintf("e%031x", sum)[:32]
+}
+
+func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*TokenPair, error) {
+	claims, err := s.jwt.ParseToken(refreshToken)
+	if err != nil || claims.TokenType != utils.TokenTypeRefresh {
+		return nil, errors.New("invalid refresh token")
+	}
+	ok, err := s.authRedis.ValidateRefreshToken(ctx, claims.UserID, claims.ID)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, errors.New("refresh token revoked")
+	}
+	_ = s.authRedis.RevokeRefreshToken(ctx, claims.UserID, claims.ID)
+	return s.issueTokens(ctx, claims.UserID)
+}
+
+func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
+	claims, err := s.jwt.ParseToken(refreshToken)
+	if err != nil {
+		return nil
+	}
+	return s.authRedis.RevokeRefreshToken(ctx, claims.UserID, claims.ID)
+}
+
+func (s *AuthService) issueTokens(ctx context.Context, userID uuid.UUID) (*TokenPair, error) {
+	access, err := s.jwt.GenerateAccessToken(userID)
+	if err != nil {
+		return nil, err
+	}
+	refresh, err := s.jwt.GenerateRefreshToken(userID)
+	if err != nil {
+		return nil, err
+	}
+	claims, err := s.jwt.ParseToken(refresh)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.authRedis.StoreRefreshToken(ctx, userID, claims.ID, s.refreshTTL); err != nil {
+		return nil, err
+	}
+	return &TokenPair{AccessToken: access, RefreshToken: refresh}, nil
+}

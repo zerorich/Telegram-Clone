@@ -1,0 +1,108 @@
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# --- IDE / editors ---
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+*.swp
+*~
+.project
+.classpath
+.settings/
+
+# --- Secrets & local env ---
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+credentials.json
+secrets.json
+
+# --- Go (server) ---
+server/bin/
+server/*.exe
+server/*.test
+server/*.out
+server/coverage.out
+server/vendor/
+
+# User uploads (keep directory structure via .gitkeep)
+server/uploads/**
+!server/uploads/.gitkeep
+
+# --- Flutter / Dart ---
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+**/build/
+!**/android/**/build.gradle*
+!**/android/**/build.gradle.kts
+
+# Android
+**/.gradle/
+**/.cxx/
+**/local.properties
+**/captures/
+*.jks
+*.keystore
+key.properties
+
+# iOS / macOS (when added)
+**/Pods/
+**/.symlinks/
+**/DerivedData/
+**/xcuserdata/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcworkspace
+!default.xcworkspace
+
+# --- Web / Node (Web/) ---
+node_modules/
+dist/
+.next/
+out/
+.nuxt/
+.parcel-cache/
+.cache/
+*.tsbuildinfo
+coverage/
+.eslintcache
+
+# --- Logs & temp ---
+*.log
+logs/
+tmp/
+temp/
+*.tmp
+
+# --- Deploy / local tooling ---
+.railway/
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# --- Misc binaries & archives ---
+*.exe
+*.dll
+*.so
+*.dylib
+*.zip
+*.tar.gz
+*.rar
+
+# --- Cursor workspace assets (generated) ---
+assets/c__Users_*/

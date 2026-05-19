@@ -1,0 +1,106 @@
+import 'package:dio/dio.dart';
+import 'package:telegramclone/core/json_map.dart';
+import 'package:telegramclone/data/api/api_helpers.dart';
+import 'package:telegramclone/data/models/api_response.dart';
+import 'package:telegramclone/data/models/message.dart';
+
+class MessagesPage {
+  final List<MessageModel> messages;
+  final String? nextCursor;
+
+  MessagesPage({required this.messages, this.nextCursor});
+}
+
+class MessagesApi {
+  final Dio _dio;
+
+  MessagesApi(this._dio);
+
+  Future<MessagesPage> listMessages(
+    String chatId, {
+    String? cursor,
+    int limit = 50,
+  }) async {
+    final res = await _dio.get(
+      '/api/chats/$chatId/messages',
+      queryParameters: {
+        if (cursor != null) 'cursor': cursor,
+        'limit': limit,
+      },
+    );
+    final data = asJsonMap(_parseData(res.data));
+    final list = parseDataList(data['messages'], MessageModel.fromJson);
+    return MessagesPage(
+      messages: list,
+      nextCursor: data['next_cursor'] as String?,
+    );
+  }
+
+  Future<MessageModel> sendText(
+    String chatId, {
+    required String content,
+    String? replyToId,
+  }) async {
+    final res = await _dio.post('/api/chats/$chatId/messages', data: {
+      'content': content,
+      if (replyToId != null) 'reply_to_id': replyToId,
+    });
+    return MessageModel.fromJson(_parseData(res.data));
+  }
+
+  Future<MessageModel> sendMedia(
+    String chatId, {
+    required String type,
+    required String filePath,
+    int? durationSec,
+    String? replyToId,
+  }) async {
+    final filename = type == 'voice' ? 'voice.m4a' : null;
+    final form = FormData.fromMap({
+      'type': type,
+      'file': await MultipartFile.fromFile(
+        filePath,
+        filename: filename,
+      ),
+      if (durationSec != null) 'duration_sec': durationSec.toString(),
+      if (replyToId != null) 'reply_to_id': replyToId,
+    });
+    final res = await _dio.post('/api/chats/$chatId/messages/media', data: form);
+    return MessageModel.fromJson(_parseData(res.data));
+  }
+
+  Future<MessageModel> editText(
+    String chatId,
+    String messageId, {
+    required String content,
+  }) async {
+    final res = await _dio.patch(
+      '/api/chats/$chatId/messages/$messageId',
+      data: {'content': content},
+    );
+    return MessageModel.fromJson(_parseData(res.data));
+  }
+
+  Future<MessageModel> deleteMessage(String chatId, String messageId) async {
+    final res = await _dio.delete('/api/chats/$chatId/messages/$messageId');
+    return MessageModel.fromJson(_parseData(res.data));
+  }
+
+  Future<void> markRead(String chatId, String messageId) async {
+    final res = await _dio.post('/api/chats/$chatId/messages/read', data: {
+      'message_id': messageId,
+    });
+    _ensureSuccess(res.data);
+  }
+
+  dynamic _parseData(dynamic json) {
+    final api = ApiResponse.fromJson(json, null);
+    if (!api.success) throw Exception(api.error ?? 'Request failed');
+    return api.data;
+  }
+
+  void _ensureSuccess(dynamic json) {
+    final api = ApiResponse.fromJson(json, null);
+    if (!api.success) throw Exception(api.error ?? 'Request failed');
+  }
+}
