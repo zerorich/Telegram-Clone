@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,7 +16,8 @@ import (
 )
 
 var (
-	ErrNotVerified = errors.New("email not verified")
+	ErrNotVerified            = errors.New("email not verified")
+	ErrInvalidRegistrationTok = errors.New("registration_token invalid or expired")
 )
 
 type AuthService struct {
@@ -49,9 +51,10 @@ type TokenPair struct {
 }
 
 type VerifyCodeResult struct {
-	IsNewUser bool
-	User      *models.User
-	Tokens    *TokenPair
+	IsNewUser         bool
+	User              *models.User
+	Tokens            *TokenPair
+	RegistrationToken string
 }
 
 func (s *AuthService) SendCode(ctx context.Context, email string) error {
@@ -103,10 +106,23 @@ func (s *AuthService) VerifyCode(ctx context.Context, email, code string) (*Veri
 	if err := s.authRedis.MarkEmailVerified(ctx, email, 30*time.Minute); err != nil {
 		return nil, err
 	}
-	return &VerifyCodeResult{IsNewUser: true}, nil
+	regToken, err := s.jwt.GenerateRegistrationToken(email)
+	if err != nil {
+		return nil, err
+	}
+	return &VerifyCodeResult{IsNewUser: true, RegistrationToken: regToken}, nil
 }
 
-func (s *AuthService) CompleteProfile(ctx context.Context, email, name, phone string, surname *string) (*models.User, *TokenPair, error) {
+func (s *AuthService) CompleteProfile(ctx context.Context, registrationToken, email, name, phone string, surname *string) (*models.User, *TokenPair, error) {
+	// 1. Validate registration token: signature, expiry, purpose, email-claim match.
+	claims, err := s.jwt.ParseRegistrationToken(registrationToken)
+	if err != nil || claims.Purpose != "registration" {
+		return nil, nil, ErrInvalidRegistrationTok
+	}
+	if !strings.EqualFold(claims.Email, email) {
+		return nil, nil, ErrInvalidRegistrationTok
+	}
+	// 2. Defense-in-depth: the Redis flag must also still be present.
 	verified, err := s.authRedis.IsEmailVerified(ctx, email)
 	if err != nil {
 		return nil, nil, err
@@ -174,7 +190,23 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*TokenP
 	return s.issueTokens(ctx, claims.UserID)
 }
 
-func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
+// Logout revokes the refresh token if valid AND blacklists the access token's
+// jti for its remaining lifetime so it cannot be used after sign-out.
+// Tokens without a jti (legacy) are skipped on the access-token side.
+func (s *AuthService) Logout(ctx context.Context, refreshToken, accessToken string) error {
+	if accessToken != "" {
+		if accessClaims, err := s.jwt.ParseToken(accessToken); err == nil && accessClaims.TokenType == utils.TokenTypeAccess {
+			if accessClaims.ID != "" && accessClaims.ExpiresAt != nil {
+				ttl := time.Until(accessClaims.ExpiresAt.Time)
+				if ttl > 0 {
+					_ = s.authRedis.RevokeAccessToken(ctx, accessClaims.ID, ttl)
+				}
+			}
+		}
+	}
+	if refreshToken == "" {
+		return nil
+	}
 	claims, err := s.jwt.ParseToken(refreshToken)
 	if err != nil {
 		return nil

@@ -1,0 +1,224 @@
+.wrap {
+  background: var(--bg-elev);
+  border-top: 1px solid var(--divider);
+  padding-bottom: calc(env(safe-area-inset-bottom) + var(--keyboard-inset, 0px));
+  flex-shrink: 0;
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: var(--bg-elev-2);
+  border-top: 1px solid var(--divider);
+}
+
+.bannerBar {
+  width: 3px;
+  align-self: stretch;
+  background: var(--brand);
+  border-radius: 2px;
+}
+
+.bannerBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.bannerTitle {
+  font-size: 12px;
+  color: var(--brand);
+  font-weight: 600;
+}
+
+.bannerText {
+  font-size: 13px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bannerClose {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.bannerClose:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.iconBtn,
+.micBtn,
+.sendBtn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  background: transparent;
+  transition: background 0.12s, color 0.12s;
+}
+
+.iconBtn:hover,
+.micBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.sendBtn {
+  background: var(--brand);
+  color: #fff;
+}
+
+.sendBtn:hover {
+  background: var(--brand-strong);
+}
+
+.sendBtn:disabled {
+  background: var(--bg-input);
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.attachWrap {
+  position: relative;
+}
+
+.attachMenu {
+  position: absolute;
+  left: 0;
+  bottom: 52px;
+  background: var(--bg-elev-2);
+  border-radius: 12px;
+  box-shadow: var(--shadow-2);
+  min-width: 180px;
+  overflow: hidden;
+  z-index: 8;
+  animation: attachIn 140ms ease-out;
+  transform-origin: bottom left;
+}
+
+@keyframes attachIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.attachMenu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  color: var(--text);
+  font-size: 14px;
+  text-align: left;
+}
+
+.attachMenu button:hover {
+  background: var(--bg-hover);
+}
+
+.textarea {
+  flex: 1;
+  min-height: 44px;
+  max-height: 180px;
+  resize: none;
+  background: var(--bg-input);
+  color: var(--text);
+  border-radius: 22px;
+  padding: 11px 16px;
+  font-size: 15px;
+  line-height: 1.4;
+  font-family: inherit;
+  overflow-y: auto;
+}
+
+.textarea:focus {
+  outline: none;
+  background: var(--bg-elev-2);
+  box-shadow: 0 0 0 2px var(--brand-soft);
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.recording {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: var(--bg-input);
+  border-radius: 22px;
+  min-height: 44px;
+}
+
+.recordingDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.recordingTime {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.recordingHint {
+  flex: 1;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.recordCancel {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--danger);
+}
+
+.recordCancel:hover {
+  background: var(--danger-soft);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.85);
+  }
+}

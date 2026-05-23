@@ -3,41 +3,100 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/fasthttp/websocket"
+	"github.com/gofiber/fiber/v2"
 	fiberws "github.com/gofiber/contrib/websocket"
 	"github.com/google/uuid"
 	"github.com/telegramclone/server/internal/services"
 	"github.com/telegramclone/server/internal/utils"
 )
 
+const (
+	wsLocalsToken    = "ws_token"
+	wsBearerProtocol = "bearer."
+)
+
 type WSHandler struct {
-	jwt      *utils.JWTManager
-	messages *services.MessageService
-	hub      *services.Hub
+	jwt            *utils.JWTManager
+	messages       *services.MessageService
+	hub            *services.Hub
+	allowedOrigins map[string]struct{}
 }
 
-func NewWSHandler(jwt *utils.JWTManager, messages *services.MessageService, hub *services.Hub) *WSHandler {
-	return &WSHandler{jwt: jwt, messages: messages, hub: hub}
+// NewWSHandler builds the websocket handler. The allowedOrigins list is used to
+// validate the Origin header on incoming upgrade requests (cross-cutting CSRF
+// protection that mirrors the HTTP CORS policy).
+func NewWSHandler(jwt *utils.JWTManager, messages *services.MessageService, hub *services.Hub, allowedOrigins []string) *WSHandler {
+	allowed := make(map[string]struct{}, len(allowedOrigins))
+	for _, o := range allowedOrigins {
+		o = strings.TrimSpace(o)
+		if o != "" {
+			allowed[o] = struct{}{}
+		}
+	}
+	return &WSHandler{jwt: jwt, messages: messages, hub: hub, allowedOrigins: allowed}
+}
+
+// Upgrade is a Fiber middleware that runs BEFORE the websocket.New upgrader.
+// It enforces the Origin policy and pre-extracts the bearer token from either
+// the legacy ?token= query param OR the new `Sec-WebSocket-Protocol: bearer.<token>`
+// subprotocol header. When the subprotocol form is used, we echo it back in the
+// response header so the browser's WebSocket client accepts the 101 handshake
+// (browsers refuse the connection when the server doesn't acknowledge the
+// requested subprotocol). The token itself is stashed in c.Locals for the
+// websocket handler to pick up post-upgrade.
+func (h *WSHandler) Upgrade(c *fiber.Ctx) error {
+	origin := c.Get("Origin")
+	if origin != "" {
+		if _, ok := h.allowedOrigins[origin]; !ok {
+			return fiber.NewError(fiber.StatusForbidden, "origin not allowed")
+		}
+	}
+
+	token := c.Query("token")
+	if token == "" {
+		// Look at requested subprotocols; we accept the first `bearer.<token>` we find.
+		requested := c.Get("Sec-WebSocket-Protocol")
+		for _, proto := range strings.Split(requested, ",") {
+			proto = strings.TrimSpace(proto)
+			if strings.HasPrefix(proto, wsBearerProtocol) {
+				token = strings.TrimPrefix(proto, wsBearerProtocol)
+				// Echo back the chosen subprotocol so the browser accepts the upgrade.
+				// fasthttp/websocket's selectSubprotocol falls through to the response
+				// header when the upgrader's Subprotocols list is nil.
+				c.Set("Sec-WebSocket-Protocol", proto)
+				break
+			}
+		}
+	}
+
+	if token == "" {
+		return fiber.NewError(fiber.StatusUnauthorized, "token required")
+	}
+
+	claims, err := h.jwt.ParseToken(token)
+	if err != nil || claims.TokenType != utils.TokenTypeAccess {
+		return fiber.NewError(fiber.StatusUnauthorized, "invalid or expired token")
+	}
+
+	c.Locals(wsLocalsToken, token)
+	c.Locals("ws_user_id", claims.UserID)
+	return c.Next()
 }
 
 func (h *WSHandler) Handle() func(*fiberws.Conn) {
 	return func(c *fiberws.Conn) {
-		token := c.Query("token")
-		if token == "" {
-			_ = c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "token required"))
+		userIDVal := c.Locals("ws_user_id")
+		userID, ok := userIDVal.(uuid.UUID)
+		if !ok || userID == uuid.Nil {
+			_ = c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "missing user context"))
 			_ = c.Close()
 			return
 		}
-		claims, err := h.jwt.ParseToken(token)
-		if err != nil || claims.TokenType != utils.TokenTypeAccess {
-			_ = c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "invalid token"))
-			_ = c.Close()
-			return
-		}
-
-		h.serveConn(claims.UserID, c)
+		h.serveConn(userID, c)
 	}
 }
 
@@ -46,10 +105,11 @@ func (h *WSHandler) serveConn(userID uuid.UUID, conn *fiberws.Conn) {
 	done := make(chan struct{})
 	defer close(done)
 
-	h.hub.Register(userID, conn.Conn)
+	client := services.NewWSClient(conn.Conn)
+	h.hub.Register(userID, client)
 	h.messages.BroadcastOnline(ctx, userID, true)
 	defer func() {
-		h.hub.Unregister(userID, conn.Conn)
+		h.hub.Unregister(userID, client)
 		h.messages.BroadcastOnline(ctx, userID, false)
 		_ = conn.Close()
 	}()
@@ -68,8 +128,8 @@ func (h *WSHandler) serveConn(userID uuid.UUID, conn *fiberws.Conn) {
 			case <-done:
 				return
 			case <-ticker.C:
-				_ = conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				// Use the per-connection write lock so we don't race the hub.
+				if err := client.Write(websocket.PingMessage, nil, 10*time.Second); err != nil {
 					return
 				}
 			}

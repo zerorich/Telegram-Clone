@@ -36,6 +36,12 @@ class AuthRepository {
     await _storage.deleteAll();
   }
 
+  /// Wipes locally stored tokens without notifying the server. Used when
+  /// refresh has already failed (the server doesn't trust our tokens anyway).
+  Future<void> clearLocalSession() async {
+    await _storage.deleteAll();
+  }
+
   Future<void> sendCode(String email) => _api.sendCode(email);
 
   Future<VerifyCodeResult> verifyCode(String email, String code) =>
@@ -44,12 +50,14 @@ class AuthRepository {
   Future<({UserModel user, TokenPair tokens})> completeProfile({
     required String email,
     required String name,
+    required String registrationToken,
     String? surname,
     String? phone,
   }) async {
     final result = await _api.completeProfile(
       email: email,
       name: name,
+      registrationToken: registrationToken,
       surname: surname,
       phone: phone,
     );

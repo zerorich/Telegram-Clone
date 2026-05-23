@@ -13,13 +13,11 @@ class WsService {
   final Ref _ref;
 
   WsService(this._client, this._auth, this._ref) {
+    _client.setTokenProvider(_auth.getAccessToken);
     _client.addListener(_handleEvent);
   }
 
-  Future<void> connect() async {
-    final token = await _auth.getAccessToken();
-    if (token != null) await _client.connect(token);
-  }
+  Future<void> connect() => _client.connect();
 
   Future<void> disconnect() => _client.disconnect();
 
@@ -48,6 +46,17 @@ class WsService {
               );
         }
         break;
+      case 'message.pinned':
+      case 'message.unpinned':
+        final chatId = data['chat_id']?.toString();
+        if (chatId == null) break;
+        if (_ref.exists(messagesProvider(chatId))) {
+          _ref.read(messagesProvider(chatId).notifier).onMessagePinned(data);
+        }
+        _ref
+            .read(chatsListProvider.notifier)
+            .patchLastMessage(MessageModel.fromJson(data));
+        break;
       case 'message.read':
         final chatId = data['chat_id']?.toString();
         if (chatId == null) break;
@@ -63,6 +72,26 @@ class WsService {
         if (_ref.exists(messagesProvider(chatId))) {
           _ref.read(messagesProvider(chatId).notifier).onMessageRead(data);
         }
+        break;
+      case 'chat.cleared':
+        final chatId = data['chat_id']?.toString();
+        if (chatId == null) break;
+        if (_ref.exists(messagesProvider(chatId))) {
+          _ref.read(messagesProvider(chatId).notifier).onChatCleared();
+        }
+        _ref.read(chatsListProvider.notifier).onChatCleared(chatId);
+        break;
+      case 'chat.deleted':
+        final chatId = data['chat_id']?.toString();
+        if (chatId == null) break;
+        _ref.read(chatsListProvider.notifier).onChatDeleted(chatId);
+        break;
+      case 'chat.muted':
+        final chatId = data['chat_id']?.toString();
+        if (chatId == null) break;
+        final untilStr = data['muted_until']?.toString();
+        final until = untilStr == null ? null : DateTime.tryParse(untilStr);
+        _ref.read(chatsListProvider.notifier).onChatMuted(chatId, until);
         break;
       case 'typing':
         final chatId = data['chat_id'] as String?;
@@ -107,6 +136,10 @@ class OnlineUsersNotifier extends StateNotifier<Map<String, bool>> {
 
   void updateOnline(String userId, bool isOnline) {
     state = {...state, userId: isOnline};
+  }
+
+  void clear() {
+    state = {};
   }
 }
 

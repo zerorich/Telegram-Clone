@@ -4,10 +4,29 @@ import 'package:telegramclone/core/json_map.dart';
 import 'package:telegramclone/data/models/chat_member.dart';
 import 'package:telegramclone/data/models/message.dart';
 
-enum ChatType { direct, group }
+enum ChatType { direct, group, saved }
 
-ChatType chatTypeFromString(String? v) =>
-    v == 'group' ? ChatType.group : ChatType.direct;
+ChatType chatTypeFromString(String? v) {
+  switch (v) {
+    case 'group':
+      return ChatType.group;
+    case 'saved':
+      return ChatType.saved;
+    default:
+      return ChatType.direct;
+  }
+}
+
+String chatTypeToString(ChatType t) {
+  switch (t) {
+    case ChatType.group:
+      return 'group';
+    case ChatType.saved:
+      return 'saved';
+    case ChatType.direct:
+      return 'direct';
+  }
+}
 
 class ChatModel extends Equatable {
   final String id;
@@ -19,6 +38,7 @@ class ChatModel extends Equatable {
   final MessageModel? lastMessage;
   final int unreadCount;
   final List<ChatMemberModel> members;
+  final DateTime? mutedUntil;
 
   const ChatModel({
     required this.id,
@@ -30,11 +50,32 @@ class ChatModel extends Equatable {
     this.lastMessage,
     this.unreadCount = 0,
     this.members = const [],
+    this.mutedUntil,
   });
 
   String get fullAvatarUrl => AppConstants.mediaUrl(avatarUrl);
 
+  bool get isSaved => type == ChatType.saved;
+
+  bool get isMuted {
+    final until = mutedUntil;
+    if (until == null) return false;
+    // `until == epoch` (or any far-past sentinel) treated as not muted; null
+    // means permanent mute in the API contract but we also accept very-far
+    // future as permanent. Otherwise we only consider it muted while in future.
+    return until.isAfter(DateTime.now());
+  }
+
+  /// True when the chat is muted forever (no expiration).
+  bool get isMutedForever {
+    final until = mutedUntil;
+    if (until == null) return false;
+    // Treat anything past year 9000 as effectively permanent.
+    return until.year >= 9000;
+  }
+
   String displayTitle(String currentUserId, {Map<String, String>? peerNames}) {
+    if (type == ChatType.saved) return 'Избранное';
     if (type == ChatType.group && name != null && name!.isNotEmpty) {
       return name!;
     }
@@ -60,6 +101,7 @@ class ChatModel extends Equatable {
   }
 
   String? peerAvatarUrl(String currentUserId) {
+    if (type == ChatType.saved) return null;
     if (type == ChatType.group) {
       return avatarUrl;
     }
@@ -82,6 +124,9 @@ class ChatModel extends Equatable {
       members: asJsonMapList(map['members'])
           .map(ChatMemberModel.fromJson)
           .toList(),
+      mutedUntil: map['muted_until'] != null
+          ? DateTime.tryParse(map['muted_until'].toString())
+          : null,
     );
   }
 
@@ -91,6 +136,9 @@ class ChatModel extends Equatable {
     String? name,
     String? avatarUrl,
     List<ChatMemberModel>? members,
+    DateTime? mutedUntil,
+    bool clearLastMessage = false,
+    bool clearMutedUntil = false,
   }) {
     return ChatModel(
       id: id,
@@ -99,14 +147,16 @@ class ChatModel extends Equatable {
       avatarUrl: avatarUrl ?? this.avatarUrl,
       createdBy: createdBy,
       createdAt: createdAt,
-      lastMessage: lastMessage ?? this.lastMessage,
+      lastMessage:
+          clearLastMessage ? null : (lastMessage ?? this.lastMessage),
       unreadCount: unreadCount ?? this.unreadCount,
       members: members ?? this.members,
+      mutedUntil: clearMutedUntil ? null : (mutedUntil ?? this.mutedUntil),
     );
   }
 
   @override
-  List<Object?> get props => [id, lastMessage?.id];
+  List<Object?> get props => [id, lastMessage?.id, mutedUntil];
 }
 
 class ChatDetail {

@@ -1,3 +1,4 @@
+import 'package:telegramclone/core/error_utils.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -62,7 +63,7 @@ class _NewGroupScreenState extends ConsumerState<NewGroupScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     } finally {

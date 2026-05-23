@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -248,4 +249,96 @@ func (h *ChatHandler) Leave(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
 	}
 	return utils.OK(c, fiber.Map{"left": true})
+}
+
+// GetSaved returns the caller's Saved messages chat, lazy-creating it on
+// first access. The response is wrapped in the standard `{success, data}`
+// envelope; `data` is a `ChatListItem`-shape payload (chat + members).
+func (h *ChatHandler) GetSaved(c *fiber.Ctx) error {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusUnauthorized, "unauthorized")
+	}
+	item, err := h.chats.GetSaved(c.Context(), userID)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
+	}
+	return utils.OK(c, item)
+}
+
+type muteReq struct {
+	// `Until` is optional and may be null in JSON, which represents an
+	// indefinite mute. We use a pointer so we can distinguish "absent" from
+	// "explicitly null".
+	Until *time.Time `json:"until"`
+}
+
+func (h *ChatHandler) Mute(c *fiber.Ctx) error {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusUnauthorized, "unauthorized")
+	}
+	chatID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "invalid chat id")
+	}
+	var req muteReq
+	// `until` is optional, so accept an empty body too.
+	if len(c.Body()) > 0 {
+		if err := c.BodyParser(&req); err != nil {
+			return utils.Fail(c, fiber.StatusBadRequest, "invalid request body")
+		}
+	}
+	mute, err := h.chats.Mute(c.Context(), chatID, userID, req.Until)
+	if err != nil {
+		if errors.Is(err, services.ErrNotMember) {
+			return utils.Fail(c, fiber.StatusForbidden, err.Error())
+		}
+		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+	}
+	return utils.OK(c, mute)
+}
+
+func (h *ChatHandler) Unmute(c *fiber.Ctx) error {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusUnauthorized, "unauthorized")
+	}
+	chatID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "invalid chat id")
+	}
+	if err := h.chats.Unmute(c.Context(), chatID, userID); err != nil {
+		if errors.Is(err, services.ErrNotMember) {
+			return utils.Fail(c, fiber.StatusForbidden, err.Error())
+		}
+		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+	}
+	return utils.OK(c, fiber.Map{"muted": false})
+}
+
+// Delete handles `DELETE /api/chats/:id` and dispatches by chat type. See
+// `ChatService.Delete` for the per-type semantics.
+func (h *ChatHandler) Delete(c *fiber.Ctx) error {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusUnauthorized, "unauthorized")
+	}
+	chatID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "invalid chat id")
+	}
+	if err := h.chats.Delete(c.Context(), chatID, userID); err != nil {
+		switch {
+		case errors.Is(err, services.ErrCannotDeleteSaved):
+			return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		case errors.Is(err, services.ErrChatNotFound):
+			return utils.Fail(c, fiber.StatusNotFound, err.Error())
+		case errors.Is(err, services.ErrForbidden):
+			return utils.Fail(c, fiber.StatusForbidden, err.Error())
+		default:
+			return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		}
+	}
+	return utils.OK(c, fiber.Map{"deleted": true})
 }

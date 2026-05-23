@@ -93,6 +93,59 @@ class MessagesApi {
     _ensureSuccess(res.data);
   }
 
+  /// Forwards [messageId] from [sourceChatId] into [targetChatId].
+  Future<MessageModel> forward({
+    required String targetChatId,
+    required String sourceChatId,
+    required String messageId,
+  }) async {
+    final res = await _dio.post(
+      '/api/chats/$targetChatId/messages/forward',
+      data: {
+        'source_chat_id': sourceChatId,
+        'message_id': messageId,
+      },
+    );
+    return MessageModel.fromJson(_parseData(res.data));
+  }
+
+  Future<MessageModel> pin(String chatId, String messageId) async {
+    final res =
+        await _dio.post('/api/chats/$chatId/messages/$messageId/pin');
+    return MessageModel.fromJson(_parseData(res.data));
+  }
+
+  Future<MessageModel> unpin(String chatId, String messageId) async {
+    final res =
+        await _dio.delete('/api/chats/$chatId/messages/$messageId/pin');
+    return MessageModel.fromJson(_parseData(res.data));
+  }
+
+  Future<List<MessageModel>> getPinned(String chatId) async {
+    final res = await _dio.get('/api/chats/$chatId/pinned');
+    final data = asJsonMap(_parseData(res.data));
+    return parseDataList(data['messages'], MessageModel.fromJson);
+  }
+
+  Future<List<MessageModel>> search(
+    String chatId, {
+    required String query,
+    int limit = 50,
+  }) async {
+    final res = await _dio.get(
+      '/api/chats/$chatId/messages/search',
+      queryParameters: {'q': query, 'limit': limit},
+    );
+    final data = asJsonMap(_parseData(res.data));
+    return parseDataList(data['messages'], MessageModel.fromJson);
+  }
+
+  /// Clears all messages in the chat (chat itself remains).
+  Future<void> clearHistory(String chatId) async {
+    final res = await _dio.delete('/api/chats/$chatId/messages');
+    _ensureSuccess(res.data);
+  }
+
   dynamic _parseData(dynamic json) {
     final api = ApiResponse.fromJson(json, null);
     if (!api.success) throw Exception(api.error ?? 'Request failed');

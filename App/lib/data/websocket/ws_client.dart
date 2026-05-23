@@ -6,6 +6,7 @@ import 'package:telegramclone/core/constants.dart';
 import 'package:telegramclone/core/json_map.dart';
 
 typedef WsEventHandler = void Function(String type, Map<String, dynamic> data);
+typedef WsTokenProvider = Future<String?> Function();
 
 class WsClient {
   WebSocketChannel? _channel;
@@ -13,22 +14,38 @@ class WsClient {
   Timer? _reconnectTimer;
   int _backoffSeconds = 1;
   bool _disposed = false;
-  String? _token;
+  WsTokenProvider? _tokenProvider;
   final _handlers = <WsEventHandler>[];
+
+  WsClient({WsTokenProvider? tokenProvider}) : _tokenProvider = tokenProvider;
+
+  void setTokenProvider(WsTokenProvider provider) {
+    _tokenProvider = provider;
+  }
 
   void addListener(WsEventHandler handler) => _handlers.add(handler);
   void removeListener(WsEventHandler handler) => _handlers.remove(handler);
 
-  Future<void> connect(String token) async {
-    _token = token;
+  Future<void> connect() async {
     _disposed = false;
     await _connectInternal();
   }
 
   Future<void> _connectInternal() async {
-    if (_disposed || _token == null) return;
+    if (_disposed) return;
+    final provider = _tokenProvider;
+    if (provider == null) return;
+    final token = await provider();
+    if (token == null || token.isEmpty) return;
+    if (_disposed) return;
     try {
-      final uri = Uri.parse('${AppConstants.wsUrl}?token=$_token');
+      // Legacy ?token=<jwt> query-string auth. The subprotocol-based path
+      // (Sec-WebSocket-Protocol: bearer.<token>) is rejected by Dart's
+      // web_socket_channel when the Fiber/fasthttp upgrade response doesn't
+      // echo back the chosen subprotocol.
+      final uri = Uri.parse(
+        '${AppConstants.wsUrl}?token=${Uri.encodeComponent(token)}',
+      );
       _channel = WebSocketChannel.connect(uri);
       _subscription = _channel!.stream.listen(
         _onMessage,
@@ -47,7 +64,9 @@ class WsClient {
       final json = asJsonMap(jsonDecode(raw as String));
       final type = json['type'] as String? ?? '';
       final map = json['data'] != null ? asJsonMap(json['data']) : <String, dynamic>{};
-      for (final h in _handlers) {
+      // Snapshot to avoid ConcurrentModificationError if a handler add/removes
+      // listeners while we're iterating.
+      for (final h in List.of(_handlers)) {
         h(type, map);
       }
     } catch (_) {}
@@ -80,8 +99,11 @@ class WsClient {
   Future<void> disconnect() async {
     _disposed = true;
     _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     await _subscription?.cancel();
+    _subscription = null;
     await _channel?.sink.close();
     _channel = null;
+    _backoffSeconds = 1;
   }
 }

@@ -1,3 +1,4 @@
+import 'package:telegramclone/core/error_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -35,7 +36,7 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     } finally {
@@ -53,7 +54,7 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     } finally {

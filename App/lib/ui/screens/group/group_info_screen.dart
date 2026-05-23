@@ -65,7 +65,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                       size: 40,
                     ),
                     title: Text(m.user?.displayName ?? m.userId),
-                    subtitle: Text(m.role.name),
+                    subtitle: Text(memberRoleToString(m.role)),
                   )),
               if (isAdmin)
                 ListTile(

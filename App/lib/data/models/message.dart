@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:telegramclone/core/constants.dart';
 import 'package:telegramclone/core/json_map.dart';
+import 'package:telegramclone/data/models/user.dart';
 
 enum MessageType { text, image, video, voice, file }
 
@@ -19,6 +20,24 @@ MessageType messageTypeFromString(String? v) {
   }
 }
 
+// Manual stringifier — `EnumName.name` requires Dart SDK >= 2.15 and blows up
+// at runtime on older Dart VMs that some shipped builds were AOT-compiled
+// against, so we avoid `.name` on enums entirely.
+String messageTypeToString(MessageType t) {
+  switch (t) {
+    case MessageType.text:
+      return 'text';
+    case MessageType.image:
+      return 'image';
+    case MessageType.video:
+      return 'video';
+    case MessageType.voice:
+      return 'voice';
+    case MessageType.file:
+      return 'file';
+  }
+}
+
 class MessageModel extends Equatable {
   final String id;
   final String chatId;
@@ -32,6 +51,11 @@ class MessageModel extends Equatable {
   final bool isDeleted;
   final DateTime createdAt;
   final bool isRead;
+  final bool isPinned;
+  final DateTime? pinnedAt;
+  final String? forwardedFromUserId;
+  final String? forwardedFromChatId;
+  final UserModel? forwardedFromUser;
 
   const MessageModel({
     required this.id,
@@ -46,9 +70,16 @@ class MessageModel extends Equatable {
     this.isDeleted = false,
     required this.createdAt,
     this.isRead = false,
+    this.isPinned = false,
+    this.pinnedAt,
+    this.forwardedFromUserId,
+    this.forwardedFromChatId,
+    this.forwardedFromUser,
   });
 
   String get fullMediaUrl => AppConstants.mediaUrl(mediaUrl);
+
+  bool get isForwarded => forwardedFromUserId != null;
 
   static int? _parseDurationSec(dynamic value) {
     if (value == null) return null;
@@ -73,6 +104,15 @@ class MessageModel extends Equatable {
       isDeleted: map['is_deleted'] as bool? ?? false,
       createdAt: DateTime.parse(map['created_at'] as String),
       isRead: map['is_read'] as bool? ?? false,
+      isPinned: map['is_pinned'] as bool? ?? false,
+      pinnedAt: map['pinned_at'] != null
+          ? DateTime.tryParse(map['pinned_at'].toString())
+          : null,
+      forwardedFromUserId: map['forwarded_from_user_id']?.toString(),
+      forwardedFromChatId: map['forwarded_from_chat_id']?.toString(),
+      forwardedFromUser: map['forwarded_from_user'] != null
+          ? UserModel.fromJson(map['forwarded_from_user'])
+          : null,
     );
   }
 
@@ -81,6 +121,12 @@ class MessageModel extends Equatable {
     bool? isEdited,
     bool? isDeleted,
     String? content,
+    bool? isPinned,
+    DateTime? pinnedAt,
+    String? forwardedFromUserId,
+    String? forwardedFromChatId,
+    UserModel? forwardedFromUser,
+    bool clearPinnedAt = false,
   }) {
     return MessageModel(
       id: id,
@@ -95,9 +141,14 @@ class MessageModel extends Equatable {
       isDeleted: isDeleted ?? this.isDeleted,
       createdAt: createdAt,
       isRead: isRead ?? this.isRead,
+      isPinned: isPinned ?? this.isPinned,
+      pinnedAt: clearPinnedAt ? null : (pinnedAt ?? this.pinnedAt),
+      forwardedFromUserId: forwardedFromUserId ?? this.forwardedFromUserId,
+      forwardedFromChatId: forwardedFromChatId ?? this.forwardedFromChatId,
+      forwardedFromUser: forwardedFromUser ?? this.forwardedFromUser,
     );
   }
 
   @override
-  List<Object?> get props => [id, chatId, createdAt, isRead];
+  List<Object?> get props => [id, chatId, createdAt, isRead, isPinned, isDeleted];
 }

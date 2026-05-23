@@ -15,6 +15,13 @@ class ChatsApi {
     return parseDataList(_parseData(res.data), ChatModel.fromJson);
   }
 
+  /// Returns the caller's Saved Messages chat. Server auto-creates if missing.
+  /// May 404 on older servers — caller should treat that as null.
+  Future<ChatModel> getSaved() async {
+    final res = await _dio.get('/api/chats/saved');
+    return ChatModel.fromJson(_parseData(res.data));
+  }
+
   Future<ChatModel> createDirect(String userId) async {
     final res = await _dio.post('/api/chats/direct', data: {'user_id': userId});
     return ChatModel.fromJson(_parseData(res.data));
@@ -86,6 +93,26 @@ class ChatsApi {
 
   Future<void> leaveGroup(String chatId) async {
     final res = await _dio.delete('/api/chats/$chatId/leave');
+    _ensureSuccess(res.data);
+  }
+
+  /// Deletes the chat. Server enforces direct/group/saved rules.
+  Future<void> deleteChat(String chatId) async {
+    final res = await _dio.delete('/api/chats/$chatId');
+    _ensureSuccess(res.data);
+  }
+
+  /// Mutes the chat. `until == null` means permanent mute.
+  Future<void> mute(String chatId, {DateTime? until}) async {
+    final res = await _dio.post(
+      '/api/chats/$chatId/mute',
+      data: {'until': until?.toUtc().toIso8601String()},
+    );
+    _ensureSuccess(res.data);
+  }
+
+  Future<void> unmute(String chatId) async {
+    final res = await _dio.delete('/api/chats/$chatId/mute');
     _ensureSuccess(res.data);
   }
 

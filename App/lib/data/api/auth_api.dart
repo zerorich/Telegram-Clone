@@ -8,11 +8,13 @@ class VerifyCodeResult {
   final bool isNewUser;
   final UserModel? user;
   final TokenPair? tokens;
+  final String? registrationToken;
 
   const VerifyCodeResult({
     required this.isNewUser,
     this.user,
     this.tokens,
+    this.registrationToken,
   });
 }
 
@@ -34,7 +36,10 @@ class AuthApi {
     final data = _parseData(res.data);
     final isNewUser = data['is_new_user'] as bool? ?? false;
     if (isNewUser) {
-      return const VerifyCodeResult(isNewUser: true);
+      return VerifyCodeResult(
+        isNewUser: true,
+        registrationToken: data['registration_token'] as String?,
+      );
     }
     return VerifyCodeResult(
       isNewUser: false,
@@ -46,15 +51,22 @@ class AuthApi {
   Future<({UserModel user, TokenPair tokens})> completeProfile({
     required String email,
     required String name,
+    required String registrationToken,
     String? surname,
     String? phone,
   }) async {
-    final res = await _dio.post('/api/auth/complete-profile', data: {
-      'email': email,
-      'name': name,
-      if (surname != null) 'surname': surname,
-      if (phone != null && phone.isNotEmpty) 'phone': phone,
-    });
+    final res = await _dio.post(
+      '/api/auth/complete-profile',
+      data: {
+        'email': email,
+        'name': name,
+        if (surname != null) 'surname': surname,
+        if (phone != null && phone.isNotEmpty) 'phone': phone,
+      },
+      options: Options(headers: {
+        'Authorization': 'Bearer $registrationToken',
+      }),
+    );
     final data = _parseData(res.data);
     return (
       user: UserModel.fromJson(data['user']),

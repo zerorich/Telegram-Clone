@@ -1,0 +1,81 @@
+.imageBtn,
+.videoBtn {
+  display: block;
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.18);
+  cursor: zoom-in;
+  position: relative;
+}
+
+.imageBtn img,
+.videoBtn video {
+  width: 100%;
+  max-height: 360px;
+  object-fit: cover;
+  display: block;
+}
+
+.playBadge {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+  color: inherit;
+  text-decoration: none;
+  min-width: 220px;
+  max-width: 320px;
+}
+
+.fileIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--brand-soft);
+  color: var(--brand);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fileBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.fileName {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fileSub {
+  font-size: 12px;
+  color: currentColor;
+  opacity: 0.7;
+}
+
+.fileDownload {
+  color: currentColor;
+  opacity: 0.7;
+}
+
+.file:hover .fileDownload {
+  opacity: 1;
+}

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:telegramclone/core/constants.dart';
 import 'package:telegramclone/data/api/auth_api.dart';
 import 'package:telegramclone/data/api/chats_api.dart';
 import 'package:telegramclone/data/api/dio_client.dart';
@@ -15,13 +16,19 @@ final secureStorageProvider = Provider<FlutterSecureStorage>(
   (_) => const FlutterSecureStorage(),
 );
 
-final authApiProvider = Provider<AuthApi>((ref) {
-  final dio = Dio(BaseOptions(
-    baseUrl: 'http://10.0.2.2:8080',
+// Bare Dio used only for token refresh / unauthenticated auth calls, to avoid
+// a circular dependency with the interceptor-equipped [dioProvider].
+final _bareAuthDioProvider = Provider<Dio>((ref) {
+  return Dio(BaseOptions(
+    baseUrl: AppConstants.baseUrl,
+    connectTimeout: const Duration(seconds: 15),
+    receiveTimeout: const Duration(seconds: 30),
     headers: {'Content-Type': 'application/json'},
   ));
-  return AuthApi(dio);
 });
+
+final authApiProvider =
+    Provider<AuthApi>((ref) => AuthApi(ref.watch(_bareAuthDioProvider)));
 
 final dioClientProvider = Provider<DioClient>((ref) {
   return DioClient(

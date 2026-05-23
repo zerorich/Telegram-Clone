@@ -22,26 +22,44 @@ class MessageRepository {
     return list.map((e) => MessageModel.fromJson(e)).toList();
   }
 
+  Map<String, dynamic> _messageToCache(MessageModel m) => {
+        'id': m.id,
+        'chat_id': m.chatId,
+        'sender_id': m.senderId,
+        'type': messageTypeToString(m.type),
+        'content': m.content,
+        'media_url': m.mediaUrl,
+        'duration_sec': m.durationSec,
+        'reply_to_id': m.replyToId,
+        'is_edited': m.isEdited,
+        'is_deleted': m.isDeleted,
+        'is_read': m.isRead,
+        'is_pinned': m.isPinned,
+        if (m.pinnedAt != null) 'pinned_at': m.pinnedAt!.toIso8601String(),
+        'forwarded_from_user_id': m.forwardedFromUserId,
+        'forwarded_from_chat_id': m.forwardedFromChatId,
+        if (m.forwardedFromUser != null)
+          'forwarded_from_user': {
+            'id': m.forwardedFromUser!.id,
+            'phone': m.forwardedFromUser!.phone,
+            'email': m.forwardedFromUser!.email,
+            'name': m.forwardedFromUser!.name,
+            'surname': m.forwardedFromUser!.surname,
+            'username': m.forwardedFromUser!.username,
+            'avatar_url': m.forwardedFromUser!.avatarUrl,
+            'is_verified': m.forwardedFromUser!.isVerified,
+          },
+        'created_at': m.createdAt.toIso8601String(),
+      };
+
   Future<void> cacheMessages(String chatId, List<MessageModel> messages) async {
     final box = await _box(chatId);
-    await box.put(
-      'messages',
-      messages
-          .map((m) => {
-                'id': m.id,
-                'chat_id': m.chatId,
-                'sender_id': m.senderId,
-                'type': m.type.name,
-                'content': m.content,
-                'media_url': m.mediaUrl,
-                'duration_sec': m.durationSec,
-                'reply_to_id': m.replyToId,
-                'is_edited': m.isEdited,
-                'is_deleted': m.isDeleted,
-                'created_at': m.createdAt.toIso8601String(),
-              })
-          .toList(),
-    );
+    await box.put('messages', messages.map(_messageToCache).toList());
+  }
+
+  Future<void> clearCachedMessages(String chatId) async {
+    final box = await _box(chatId);
+    await box.delete('messages');
   }
 
   Future<MessagesPage> fetchMessages(
@@ -80,4 +98,48 @@ class MessageRepository {
 
   Future<MessageModel> deleteMessage(String chatId, String messageId) =>
       _api.deleteMessage(chatId, messageId);
+
+  Future<MessageModel> forward({
+    required String targetChatId,
+    required String sourceChatId,
+    required String messageId,
+  }) =>
+      _api.forward(
+        targetChatId: targetChatId,
+        sourceChatId: sourceChatId,
+        messageId: messageId,
+      );
+
+  Future<MessageModel> pin(String chatId, String messageId) =>
+      _api.pin(chatId, messageId);
+
+  Future<MessageModel> unpin(String chatId, String messageId) =>
+      _api.unpin(chatId, messageId);
+
+  Future<List<MessageModel>> getPinned(String chatId) => _api.getPinned(chatId);
+
+  Future<List<MessageModel>> search(
+    String chatId, {
+    required String query,
+    int limit = 50,
+  }) =>
+      _api.search(chatId, query: query, limit: limit);
+
+  Future<void> clearHistory(String chatId) => _api.clearHistory(chatId);
+
+  /// Wipes cached messages for all chats whose IDs are known to the caller.
+  /// Closes and deletes per-chat Hive boxes from disk so they don't leak
+  /// across user sessions.
+  Future<void> clearAllCaches(Iterable<String> chatIds) async {
+    for (final id in chatIds) {
+      final name = _boxName(id);
+      _boxes.remove(name);
+      if (Hive.isBoxOpen(name)) {
+        await Hive.box(name).close();
+      }
+      try {
+        await Hive.deleteBoxFromDisk(name);
+      } catch (_) {}
+    }
+  }
 }

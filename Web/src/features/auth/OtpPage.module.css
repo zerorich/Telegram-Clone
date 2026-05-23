@@ -1,0 +1,61 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  align-items: center;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.cell {
+  width: 46px;
+  height: 56px;
+  border-radius: 12px;
+  background: var(--bg-input);
+  text-align: center;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+  border: 1px solid transparent;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.cell:focus {
+  outline: none;
+  border-color: var(--brand);
+  background: var(--bg-elev-2);
+}
+
+.cellError {
+  border-color: var(--danger);
+}
+
+.error {
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.spinner {
+  display: flex;
+  justify-content: center;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+@media (max-width: 380px) {
+  .cell {
+    width: 40px;
+    height: 50px;
+    font-size: 20px;
+  }
+}

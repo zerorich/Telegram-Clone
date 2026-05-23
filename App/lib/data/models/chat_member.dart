@@ -15,6 +15,18 @@ MemberRole memberRoleFromString(String? v) {
   }
 }
 
+// Avoid `EnumName.name` (Dart >=2.15) — older runtimes throw NoSuchMethodError.
+String memberRoleToString(MemberRole r) {
+  switch (r) {
+    case MemberRole.admin:
+      return 'admin';
+    case MemberRole.owner:
+      return 'owner';
+    case MemberRole.member:
+      return 'member';
+  }
+}
+
 class ChatMemberModel extends Equatable {
   final String chatId;
   final String userId;

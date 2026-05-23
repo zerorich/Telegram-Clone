@@ -1,0 +1,216 @@
+.row {
+  display: flex;
+  padding: 1px 8px;
+  width: 100%;
+  scroll-margin: 72px;
+  transition: background-color 0.6s;
+}
+
+.rowMine {
+  justify-content: flex-end;
+}
+
+.bubble {
+  position: relative;
+  max-width: min(560px, 78%);
+  border-radius: 14px;
+  padding: 6px 10px 4px;
+  color: var(--bubble-other-fg);
+  background: var(--bubble-other);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
+  word-break: break-word;
+}
+
+.bubble.media {
+  padding: 4px;
+}
+
+.bubbleMine {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--bubble-mine) 92%, #ffffff 8%),
+    var(--bubble-mine)
+  );
+  color: var(--bubble-mine-fg);
+}
+
+.bubbleOther {
+  background: var(--bubble-other);
+  color: var(--bubble-other-fg);
+}
+
+.withTail {
+  border-bottom-left-radius: 4px;
+}
+
+.bubbleMine.withTail {
+  border-bottom-left-radius: 14px;
+  border-bottom-right-radius: 4px;
+}
+
+.forwarded {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--brand);
+  margin: 2px 0 4px;
+  padding-left: 8px;
+  border-left: 3px solid var(--brand);
+  line-height: 1.3;
+}
+
+.forwardedIcon {
+  flex-shrink: 0;
+}
+
+.bubbleMine .forwarded {
+  color: #cfeaff;
+  border-left-color: #cfeaff;
+}
+
+.pinned .bubble {
+  box-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.08),
+    0 0 0 2px var(--brand-soft);
+}
+
+.sender {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand);
+  margin: 2px 4px 2px;
+}
+
+.reply {
+  padding: 6px 8px;
+  border-left: 3px solid var(--brand);
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 8px;
+  margin: 2px 0 6px;
+  font-size: 13px;
+}
+
+.bubbleMine .reply {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.replyBody {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.85;
+}
+
+.text {
+  font-size: 15px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+
+.deleted {
+  font-style: italic;
+  opacity: 0.65;
+  font-size: 14px;
+}
+
+.link {
+  color: var(--brand);
+  text-decoration: underline;
+}
+
+.bubbleMine .link {
+  color: #cfeaff;
+}
+
+.mediaWrap {
+  display: block;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.mediaInline {
+  display: block;
+  padding: 6px 4px;
+}
+
+.caption {
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.35;
+  padding: 0 4px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/*
+ * Invisible inline placeholder appended to the last text node. Reserves space
+ * for the absolutely positioned `.meta` so that:
+ *   - If the last line of text has enough trailing room, the meta sits inline.
+ *   - Otherwise the placeholder pushes itself (and visually the meta) to a
+ *     new line below the content.
+ * Width is set inline via JS per-message (depends on edited / mine flags).
+ */
+.metaShadow {
+  display: inline-block;
+  width: 0;
+  height: 1em;
+  vertical-align: bottom;
+  pointer-events: none;
+}
+
+.meta {
+  position: absolute;
+  right: 8px;
+  bottom: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--bubble-time);
+  pointer-events: none;
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, var(--bubble-other) 80%, transparent) 60%
+  );
+  padding: 0 2px 0 8px;
+  border-radius: 8px;
+}
+
+.bubbleMine .meta {
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, var(--bubble-mine) 80%, transparent) 60%
+  );
+}
+
+.bubble.media .meta {
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 999px;
+  right: 10px;
+  bottom: 10px;
+}
+
+.time {
+  font-variant-numeric: tabular-nums;
+}
+
+.edited {
+  margin-right: 2px;
+}
+
+.tick {
+  color: inherit;
+}
+
+@media (max-width: 480px) {
+  .bubble {
+    max-width: 86%;
+  }
+}

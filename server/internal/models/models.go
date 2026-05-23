@@ -33,6 +33,7 @@ type ChatType string
 const (
 	ChatTypeDirect ChatType = "direct"
 	ChatTypeGroup  ChatType = "group"
+	ChatTypeSaved  ChatType = "saved"
 )
 
 type MemberRole string
@@ -71,19 +72,31 @@ const (
 )
 
 type Message struct {
-	ID          uuid.UUID   `json:"id"`
-	ChatID      uuid.UUID   `json:"chat_id"`
-	SenderID    uuid.UUID   `json:"sender_id"`
-	Type        MessageType `json:"type"`
-	Content     *string     `json:"content,omitempty"`
-	MediaURL    *string     `json:"media_url,omitempty"`
-	DurationSec *int        `json:"duration_sec,omitempty"`
-	ReplyToID   *uuid.UUID  `json:"reply_to_id,omitempty"`
-	IsEdited    bool        `json:"is_edited"`
-	IsDeleted   bool        `json:"is_deleted"`
-	CreatedAt   time.Time   `json:"created_at"`
-	IsRead      bool        `json:"is_read,omitempty"`
-	Sender      *User       `json:"sender,omitempty"`
+	ID                  uuid.UUID   `json:"id"`
+	ChatID              uuid.UUID   `json:"chat_id"`
+	SenderID            uuid.UUID   `json:"sender_id"`
+	Type                MessageType `json:"type"`
+	Content             *string     `json:"content,omitempty"`
+	MediaURL            *string     `json:"media_url,omitempty"`
+	DurationSec         *int        `json:"duration_sec,omitempty"`
+	ReplyToID           *uuid.UUID  `json:"reply_to_id,omitempty"`
+	IsEdited            bool        `json:"is_edited"`
+	IsDeleted           bool        `json:"is_deleted"`
+	CreatedAt           time.Time   `json:"created_at"`
+	IsPinned            bool        `json:"is_pinned"`
+	PinnedAt            *time.Time  `json:"pinned_at,omitempty"`
+	ForwardedFromUserID *uuid.UUID  `json:"forwarded_from_user_id,omitempty"`
+	ForwardedFromChatID *uuid.UUID  `json:"forwarded_from_chat_id,omitempty"`
+	ForwardedFromUser   *User       `json:"forwarded_from_user,omitempty"`
+	IsRead              bool        `json:"is_read,omitempty"`
+	Sender              *User       `json:"sender,omitempty"`
+}
+
+type ChatMute struct {
+	UserID     uuid.UUID  `json:"user_id"`
+	ChatID     uuid.UUID  `json:"chat_id"`
+	MutedUntil *time.Time `json:"muted_until,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
 }
 
 type MessageRead struct {

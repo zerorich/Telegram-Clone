@@ -10,9 +10,10 @@ import (
 )
 
 const (
-	keyRefreshPrefix   = "refresh:"
-	keyRegisterPrefix  = "register:"
-	keyVerifiedPrefix  = "verified:"
+	keyRefreshPrefix       = "refresh:"
+	keyRegisterPrefix      = "register:"
+	keyVerifiedPrefix      = "verified:"
+	keyRevokedAccessPrefix = "revoked_access:"
 )
 
 type AuthRedisRepository struct {
@@ -65,6 +66,23 @@ func (r *AuthRedisRepository) MarkEmailVerified(ctx context.Context, email strin
 
 func (r *AuthRedisRepository) IsEmailVerified(ctx context.Context, email string) (bool, error) {
 	n, err := r.rdb.Exists(ctx, keyVerifiedPrefix+email).Result()
+	return n > 0, err
+}
+
+// RevokeAccessToken stores the access-token jti for the remainder of its
+// natural lifetime, after which Redis will expire the entry automatically.
+func (r *AuthRedisRepository) RevokeAccessToken(ctx context.Context, jti string, ttl time.Duration) error {
+	if jti == "" || ttl <= 0 {
+		return nil
+	}
+	return r.rdb.Set(ctx, keyRevokedAccessPrefix+jti, "1", ttl).Err()
+}
+
+func (r *AuthRedisRepository) IsAccessTokenRevoked(ctx context.Context, jti string) (bool, error) {
+	if jti == "" {
+		return false, nil
+	}
+	n, err := r.rdb.Exists(ctx, keyRevokedAccessPrefix+jti).Result()
 	return n > 0, err
 }
 

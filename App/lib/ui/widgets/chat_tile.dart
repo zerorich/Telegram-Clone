@@ -5,7 +5,7 @@ import 'package:telegramclone/core/theme.dart';
 import 'package:telegramclone/data/models/chat.dart';
 import 'package:telegramclone/ui/widgets/avatar_widget.dart';
 
-class ChatTile extends StatelessWidget {
+class ChatTile extends StatefulWidget {
   final ChatModel chat;
   final String currentUserId;
   final VoidCallback onTap;
@@ -18,7 +18,18 @@ class ChatTile extends StatelessWidget {
   });
 
   @override
+  State<ChatTile> createState() => _ChatTileState();
+}
+
+class _ChatTileState extends State<ChatTile>
+    with SingleTickerProviderStateMixin {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
+    final chat = widget.chat;
+    final currentUserId = widget.currentUserId;
+
     final title = chat.displayTitle(currentUserId);
     final last = chat.lastMessage;
     final isGroup = chat.type == ChatType.group;
@@ -37,30 +48,62 @@ class ChatTile extends StatelessWidget {
     }
 
     final preview = last == null
-        ? 'Нет сообщений'
+        ? (chat.isSaved
+            ? 'Сохраняйте важные сообщения здесь'
+            : 'Нет сообщений')
         : formatMessagePreview(
             content: last.content,
             type: last.type,
-            isMine: isMine,
+            isMine: isMine && !chat.isSaved,
             senderName: senderName,
             isGroup: isGroup,
           );
 
-    return Material(
-      color: Colors.transparent,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 100),
+      color: _pressed ? AppColors.darkTileActive : Colors.transparent,
       child: InkWell(
-        onTap: onTap,
+        onTap: widget.onTap,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
+        splashColor: AppColors.teal.withValues(alpha: 0.08),
+        highlightColor: Colors.transparent,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              AvatarWidget(
-                imageUrl: avatarPath != null && avatarPath.isNotEmpty
-                    ? AppConstants.mediaUrl(avatarPath)
-                    : null,
-                name: title,
-                size: 54,
+              // Avatar with mute indicator
+              Stack(
+                children: [
+                  AvatarWidget(
+                    imageUrl: avatarPath != null && avatarPath.isNotEmpty
+                        ? AppConstants.mediaUrl(avatarPath)
+                        : null,
+                    name: title,
+                    size: 54,
+                    isSaved: chat.isSaved,
+                  ),
+                  if (chat.isMuted)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 18,
+                        height: 18,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.darkBg,
+                        ),
+                        child: const Icon(
+                          Icons.notifications_off_rounded,
+                          size: 12,
+                          color: AppColors.darkSubtitle,
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -68,6 +111,8 @@ class ChatTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
                       children: [
                         Expanded(
                           child: Text(
@@ -76,29 +121,41 @@ class ChatTile extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 16,
-                              fontWeight: hasUnread ? FontWeight.w700 : FontWeight.w600,
+                              fontWeight: hasUnread
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
                               color: Colors.white,
                             ),
                           ),
                         ),
+                        const SizedBox(width: 6),
                         Text(
                           timeStr,
                           style: TextStyle(
-                            fontSize: 13,
-                            color: hasUnread ? AppColors.teal : AppColors.darkSubtitle,
-                            fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
+                            fontSize: 12.5,
+                            color: hasUnread
+                                ? AppColors.teal
+                                : AppColors.darkSubtitle,
+                            fontWeight: hasUnread
+                                ? FontWeight.w600
+                                : FontWeight.normal,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        if (isMine && last != null) ...[
+                        if (isMine && last != null && !chat.isSaved) ...[
                           Icon(
-                            last.isRead ? Icons.done_all : Icons.done,
-                            size: 16,
-                            color: AppColors.darkSubtitle,
+                            last.isRead
+                                ? Icons.done_all_rounded
+                                : Icons.done_rounded,
+                            size: 15,
+                            color: last.isRead
+                                ? AppColors.teal
+                                : AppColors.darkSubtitle,
                           ),
                           const SizedBox(width: 4),
                         ],
@@ -108,13 +165,23 @@ class ChatTile extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: 15,
-                              color: hasUnread ? Colors.white70 : AppColors.darkSubtitle,
-                              fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
+                              fontSize: 14.5,
+                              color: hasUnread
+                                  ? Colors.white.withValues(alpha: 0.75)
+                                  : AppColors.darkSubtitle,
+                              fontWeight: hasUnread
+                                  ? FontWeight.w500
+                                  : FontWeight.normal,
                             ),
                           ),
                         ),
-                        if (hasUnread) _UnreadBadge(count: chat.unreadCount),
+                        if (hasUnread) ...[
+                          const SizedBox(width: 8),
+                          _UnreadBadge(
+                            count: chat.unreadCount,
+                            muted: chat.isMuted,
+                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -129,19 +196,22 @@ class ChatTile extends StatelessWidget {
 }
 
 class _UnreadBadge extends StatelessWidget {
-  const _UnreadBadge({required this.count});
+  const _UnreadBadge({required this.count, required this.muted});
 
   final int count;
+  final bool muted;
 
   @override
   Widget build(BuildContext context) {
     final label = count > 999 ? '${(count / 1000).floor()}K' : '$count';
-    return Container(
-      margin: const EdgeInsets.only(left: 8),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       constraints: const BoxConstraints(minWidth: 22),
       decoration: BoxDecoration(
-        color: AppColors.unreadBadge,
+        color: muted
+            ? AppColors.darkSubtitle.withValues(alpha: 0.4)
+            : AppColors.unreadBadge,
         borderRadius: BorderRadius.circular(11),
       ),
       alignment: Alignment.center,
@@ -150,7 +220,7 @@ class _UnreadBadge extends StatelessWidget {
         style: const TextStyle(
           color: Colors.white,
           fontSize: 12,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );

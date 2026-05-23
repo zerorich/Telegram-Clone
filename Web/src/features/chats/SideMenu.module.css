@@ -1,0 +1,112 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-overlay);
+  z-index: 90;
+  display: flex;
+  animation: fade 0.2s ease-out;
+}
+
+.panel {
+  width: min(320px, 86vw);
+  background: var(--bg-elev);
+  display: flex;
+  flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: var(--shadow-2);
+  animation: slide 0.22s ease-out;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+  border-top: 1px solid var(--divider);
+  border-bottom: 1px solid var(--divider);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  color: var(--text);
+  font-size: 15px;
+  text-align: left;
+}
+
+.item:hover {
+  background: var(--bg-hover);
+  text-decoration: none;
+}
+
+.logout {
+  margin-top: auto;
+  color: var(--danger);
+}
+
+.logout:hover {
+  background: var(--danger-soft);
+}
+
+.section {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.sectionTitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 10px;
+}
+
+.themeRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.themeBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border-radius: 10px;
+  background: var(--bg-input);
+  font-size: 12px;
+  color: var(--text);
+}
+
+.themeBtn:hover {
+  background: var(--bg-hover);
+}
+
+.themeActive {
+  background: var(--brand);
+  color: #fff;
+}
+
+.themeActive:hover {
+  background: var(--brand-strong);
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}

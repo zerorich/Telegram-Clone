@@ -1,0 +1,100 @@
+/* Color tokens. Light + dark themes. Telegram-like palette. */
+
+:root {
+  color-scheme: dark light;
+
+  /* Brand */
+  --brand: #2aabee;
+  --brand-strong: #229ed9;
+  --brand-soft: rgba(42, 171, 238, 0.16);
+
+  /* Status */
+  --danger: #e53935;
+  --danger-soft: rgba(229, 57, 53, 0.16);
+  --success: #4caf50;
+
+  /* Sizing */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.18), 0 4px 16px rgba(0, 0, 0, 0.22);
+  --shadow-2: 0 6px 28px rgba(0, 0, 0, 0.38);
+
+  --header-height: 56px;
+  --compose-min-height: 56px;
+  --sidebar-width: clamp(300px, 28vw, 420px);
+
+  /* Avatar gradient palette for letter fallbacks */
+  --av-1: linear-gradient(135deg, #ff885e, #ff516a);
+  --av-2: linear-gradient(135deg, #ffcd6a, #ffa85c);
+  --av-3: linear-gradient(135deg, #a0de7e, #54cb68);
+  --av-4: linear-gradient(135deg, #53edd6, #28c9b7);
+  --av-5: linear-gradient(135deg, #72d5fd, #2a9ef1);
+  --av-6: linear-gradient(135deg, #82b1ff, #665fff);
+  --av-7: linear-gradient(135deg, #e0a2f3, #d669ed);
+}
+
+[data-theme='dark'] {
+  --bg: #0e1621;
+  --bg-elev: #17212b;
+  --bg-elev-2: #1d2733;
+  --bg-hover: #2b3543;
+  --bg-input: #242f3d;
+  --bg-overlay: rgba(0, 0, 0, 0.6);
+
+  --text: #ffffff;
+  --text-muted: #8b9bab;
+  --text-faint: #647584;
+
+  --border: rgba(255, 255, 255, 0.06);
+  --divider: rgba(255, 255, 255, 0.05);
+
+  --bubble-mine: #2b5278;
+  --bubble-mine-fg: #ffffff;
+  --bubble-other: #182533;
+  --bubble-other-fg: #ffffff;
+  --bubble-time: rgba(255, 255, 255, 0.55);
+
+  --chat-bg: #0e1621;
+  --chat-pattern: radial-gradient(
+    circle at 20% 10%,
+    rgba(42, 171, 238, 0.07),
+    transparent 50%
+  );
+
+  --scrollbar: rgba(255, 255, 255, 0.12);
+  --scrollbar-hover: rgba(255, 255, 255, 0.22);
+}
+
+[data-theme='light'] {
+  --bg: #ffffff;
+  --bg-elev: #f4f6f8;
+  --bg-elev-2: #ffffff;
+  --bg-hover: #eaecef;
+  --bg-input: #eef0f2;
+  --bg-overlay: rgba(0, 0, 0, 0.5);
+
+  --text: #0b1620;
+  --text-muted: #707a83;
+  --text-faint: #94a0ab;
+
+  --border: rgba(0, 0, 0, 0.08);
+  --divider: rgba(0, 0, 0, 0.06);
+
+  --bubble-mine: #effdde;
+  --bubble-mine-fg: #0b1620;
+  --bubble-other: #ffffff;
+  --bubble-other-fg: #0b1620;
+  --bubble-time: rgba(0, 0, 0, 0.45);
+
+  --chat-bg: #e7ebee;
+  --chat-pattern: radial-gradient(
+    circle at 20% 10%,
+    rgba(42, 171, 238, 0.08),
+    transparent 50%
+  );
+
+  --scrollbar: rgba(0, 0, 0, 0.18);
+  --scrollbar-hover: rgba(0, 0, 0, 0.32);
+}

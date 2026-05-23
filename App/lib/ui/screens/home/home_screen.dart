@@ -15,9 +15,29 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with SingleTickerProviderStateMixin {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   String _query = '';
+  late final AnimationController _appBarCtrl;
+  late final Animation<double> _appBarFade;
+
+  @override
+  void initState() {
+    super.initState();
+    _appBarCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _appBarFade = CurvedAnimation(parent: _appBarCtrl, curve: Curves.easeOut);
+    _appBarCtrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _appBarCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,34 +52,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         bottom: false,
         child: Column(
           children: [
-            _HomeAppBar(
-              onMenu: () => _scaffoldKey.currentState?.openDrawer(),
-              onSearch: () async {
-                final q = await showSearch<String?>(
-                  context: context,
-                  delegate: _ChatSearchDelegate(ref, userId),
-                );
-                if (q != null) setState(() => _query = q);
-              },
+            FadeTransition(
+              opacity: _appBarFade,
+              child: _HomeAppBar(
+                onMenu: () => _scaffoldKey.currentState?.openDrawer(),
+                onSearch: () async {
+                  final q = await showSearch<String?>(
+                    context: context,
+                    delegate: _ChatSearchDelegate(ref, userId),
+                  );
+                  if (q != null) setState(() => _query = q);
+                },
+              ),
             ),
             Expanded(
               child: chatsAsync.when(
-                loading: () => const Center(
-                  child: CircularProgressIndicator(color: AppColors.teal),
-                ),
-                error: (e, _) => Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('Ошибка: $e', style: const TextStyle(color: Colors.white70)),
-                      const SizedBox(height: 12),
-                      FilledButton(
-                        onPressed: () =>
-                            ref.read(chatsListProvider.notifier).load(refresh: true),
-                        child: const Text('Повторить'),
-                      ),
-                    ],
-                  ),
+                loading: () => const _LoadingView(),
+                error: (e, _) => _ErrorView(
+                  error: e,
+                  onRetry: () =>
+                      ref.read(chatsListProvider.notifier).load(refresh: true),
                 ),
                 data: (chats) {
                   final filtered = _query.isEmpty
@@ -72,29 +84,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           .toList();
 
                   if (filtered.isEmpty) {
-                    return const Center(
-                      child: Text(
-                        'Нет чатов. Начните переписку!',
-                        style: TextStyle(color: AppColors.darkSubtitle),
-                      ),
-                    );
+                    return _EmptyChatsView(hasQuery: _query.isNotEmpty);
                   }
 
                   return RefreshIndicator(
                     color: AppColors.teal,
+                    backgroundColor: AppColors.darkTileHighlight,
                     onRefresh: () =>
                         ref.read(chatsListProvider.notifier).load(refresh: true),
-                    child: ListView.separated(
+                    child: ListView.builder(
                       itemCount: filtered.length,
-                      separatorBuilder: (_, __) => const Divider(
-                        height: 1,
-                        indent: 78,
-                        color: AppColors.darkDivider,
-                      ),
-                      itemBuilder: (_, i) => ChatTile(
-                        chat: filtered[i],
-                        currentUserId: userId,
-                        onTap: () => context.push('/chat/${filtered[i].id}'),
+                      itemBuilder: (_, i) => _AnimatedChatTileWrapper(
+                        index: i,
+                        child: Column(
+                          children: [
+                            ChatTile(
+                              chat: filtered[i],
+                              currentUserId: userId,
+                              onTap: () =>
+                                  context.push('/chat/${filtered[i].id}'),
+                            ),
+                            if (i < filtered.length - 1)
+                              const Divider(
+                                height: 1,
+                                indent: 78,
+                                endIndent: 0,
+                                color: AppColors.darkDivider,
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   );
@@ -116,30 +134,121 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       context: context,
       backgroundColor: AppColors.darkTileHighlight,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.darkSubtitle.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 8),
             ListTile(
-              leading: const Icon(Icons.person_add_outlined, color: AppColors.teal),
-              title: const Text('Новое сообщение'),
+              leading: Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.teal,
+                ),
+                child: const Icon(Icons.person_add_outlined, color: Colors.white),
+              ),
+              title: const Text('Новое сообщение',
+                  style: TextStyle(color: Colors.white, fontSize: 16)),
+              subtitle: const Text('Написать пользователю',
+                  style: TextStyle(color: AppColors.darkSubtitle, fontSize: 13)),
               onTap: () {
                 Navigator.pop(ctx);
                 context.push('/new-chat');
               },
             ),
             ListTile(
-              leading: const Icon(Icons.group_add_outlined, color: AppColors.teal),
-              title: const Text('Новая группа'),
+              leading: Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.tealDark,
+                ),
+                child: const Icon(Icons.group_add_outlined, color: Colors.white),
+              ),
+              title: const Text('Новая группа',
+                  style: TextStyle(color: Colors.white, fontSize: 16)),
+              subtitle: const Text('Создать групповой чат',
+                  style: TextStyle(color: AppColors.darkSubtitle, fontSize: 13)),
               onTap: () {
                 Navigator.pop(ctx);
                 context.push('/new-group');
               },
             ),
+            const SizedBox(height: 8),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// Animated wrapper for each chat tile - staggered fade + slide in
+class _AnimatedChatTileWrapper extends StatefulWidget {
+  final int index;
+  final Widget child;
+
+  const _AnimatedChatTileWrapper({
+    required this.index,
+    required this.child,
+  });
+
+  @override
+  State<_AnimatedChatTileWrapper> createState() =>
+      _AnimatedChatTileWrapperState();
+}
+
+class _AnimatedChatTileWrapperState extends State<_AnimatedChatTileWrapper>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    final delay = (widget.index * 35).clamp(0, 350);
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    );
+    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.06),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+
+    Future.delayed(Duration(milliseconds: delay), () {
+      if (mounted) _ctrl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fade,
+      child: SlideTransition(
+        position: _slide,
+        child: widget.child,
       ),
     );
   }
@@ -160,17 +269,17 @@ class _HomeAppBar extends StatelessWidget {
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 4),
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF1A1A2E), AppColors.darkAppBar],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+        color: AppColors.darkAppBar,
+        border: Border(
+          bottom: BorderSide(color: AppColors.darkDivider, width: 0.5),
         ),
       ),
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.menu, color: Colors.white),
+            icon: const Icon(Icons.menu_rounded, color: Colors.white),
             onPressed: onMenu,
+            splashRadius: 22,
           ),
           const Expanded(
             child: Text(
@@ -179,16 +288,148 @@ class _HomeAppBar extends StatelessWidget {
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 20,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
               ),
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.search, color: Colors.white),
+            icon: const Icon(Icons.search_rounded, color: Colors.white),
             onPressed: onSearch,
+            splashRadius: 22,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LoadingView extends StatelessWidget {
+  const _LoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 32,
+            height: 32,
+            child: CircularProgressIndicator(
+              color: AppColors.teal,
+              strokeWidth: 2.5,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Загрузка...',
+            style: TextStyle(
+              color: AppColors.darkSubtitle.withValues(alpha: 0.7),
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ErrorView extends StatelessWidget {
+  final Object error;
+  final VoidCallback onRetry;
+
+  const _ErrorView({required this.error, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.wifi_off_rounded,
+              size: 64,
+              color: AppColors.darkSubtitle,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Ошибка загрузки',
+              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              error.toString(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.darkSubtitle, fontSize: 14),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Повторить'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.teal,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyChatsView extends StatelessWidget {
+  final bool hasQuery;
+
+  const _EmptyChatsView({required this.hasQuery});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.teal.withValues(alpha: 0.1),
+              ),
+              child: const Icon(
+                Icons.chat_bubble_outline_rounded,
+                size: 44,
+                color: AppColors.teal,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              hasQuery ? 'Ничего не найдено' : 'Нет чатов',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              hasQuery
+                  ? 'Попробуйте другой запрос'
+                  : 'Начните переписку, нажав кнопку ниже',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.darkSubtitle,
+                fontSize: 15,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -206,24 +447,31 @@ class _ChatSearchDelegate extends SearchDelegate<String?> {
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.darkAppBar,
         foregroundColor: Colors.white,
+        elevation: 0,
       ),
       inputDecorationTheme: const InputDecorationTheme(
         hintStyle: TextStyle(color: AppColors.darkSubtitle),
+        border: InputBorder.none,
       ),
     );
   }
 
   @override
   List<Widget> buildActions(BuildContext context) => [
-        IconButton(
-          icon: const Icon(Icons.clear),
-          onPressed: () => query = '',
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 150),
+          child: query.isEmpty
+              ? const SizedBox.shrink()
+              : IconButton(
+                  icon: const Icon(Icons.clear_rounded),
+                  onPressed: () => query = '',
+                ),
         ),
       ];
 
   @override
   Widget buildLeading(BuildContext context) => IconButton(
-        icon: const Icon(Icons.arrow_back),
+        icon: const Icon(Icons.arrow_back_rounded),
         onPressed: () => close(context, null),
       );
 
@@ -241,16 +489,27 @@ class _ChatSearchDelegate extends SearchDelegate<String?> {
         .toList();
     return ColoredBox(
       color: AppColors.darkBg,
-      child: ListView.builder(
-        itemCount: filtered.length,
-        itemBuilder: (_, i) => ListTile(
-          title: Text(
-            filtered[i].displayTitle(_userId),
-            style: const TextStyle(color: Colors.white),
-          ),
-          onTap: () => close(context, filtered[i].displayTitle(_userId)),
-        ),
-      ),
+      child: filtered.isEmpty
+          ? const Center(
+              child: Text(
+                'Ничего не найдено',
+                style: TextStyle(color: AppColors.darkSubtitle),
+              ),
+            )
+          : ListView.builder(
+              itemCount: filtered.length,
+              itemBuilder: (_, i) => ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: AppColors.darkTileHighlight,
+                  child: Icon(Icons.chat_bubble_outline, color: AppColors.teal),
+                ),
+                title: Text(
+                  filtered[i].displayTitle(_userId),
+                  style: const TextStyle(color: Colors.white),
+                ),
+                onTap: () => close(context, filtered[i].displayTitle(_userId)),
+              ),
+            ),
     );
   }
 }

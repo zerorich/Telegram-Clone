@@ -222,3 +222,161 @@ func (h *MessageHandler) MarkRead(c *fiber.Ctx) error {
 	}
 	return utils.OK(c, fiber.Map{"read": true})
 }
+
+type forwardReq struct {
+	SourceChatID uuid.UUID `json:"source_chat_id" validate:"required"`
+	MessageID    uuid.UUID `json:"message_id" validate:"required"`
+}
+
+// Forward copies a message from `source_chat_id` into the URL chat. Caller
+// must be a member of both. See `MessageService.Forward` for details.
+func (h *MessageHandler) Forward(c *fiber.Ctx) error {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusUnauthorized, "unauthorized")
+	}
+	targetChatID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "invalid chat id")
+	}
+	var req forwardReq
+	if err := middleware.ValidateBody(c, &req); err != nil {
+		return err
+	}
+	msg, err := h.messages.Forward(c.Context(), targetChatID, req.SourceChatID, req.MessageID, userID)
+	if err != nil {
+		if errors.Is(err, services.ErrNotMember) {
+			return utils.Fail(c, fiber.StatusForbidden, err.Error())
+		}
+		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+	}
+	return utils.OK(c, msg)
+}
+
+func (h *MessageHandler) Pin(c *fiber.Ctx) error {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusUnauthorized, "unauthorized")
+	}
+	chatID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "invalid chat id")
+	}
+	messageID, err := uuid.Parse(c.Params("messageId"))
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "invalid message id")
+	}
+	msg, err := h.messages.Pin(c.Context(), chatID, messageID, userID)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrNotMember):
+			return utils.Fail(c, fiber.StatusForbidden, err.Error())
+		case errors.Is(err, services.ErrForbidden):
+			return utils.Fail(c, fiber.StatusForbidden, err.Error())
+		case errors.Is(err, services.ErrChatNotFound):
+			return utils.Fail(c, fiber.StatusNotFound, err.Error())
+		}
+		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+	}
+	return utils.OK(c, msg)
+}
+
+func (h *MessageHandler) Unpin(c *fiber.Ctx) error {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusUnauthorized, "unauthorized")
+	}
+	chatID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "invalid chat id")
+	}
+	messageID, err := uuid.Parse(c.Params("messageId"))
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "invalid message id")
+	}
+	msg, err := h.messages.Unpin(c.Context(), chatID, messageID, userID)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrNotMember):
+			return utils.Fail(c, fiber.StatusForbidden, err.Error())
+		case errors.Is(err, services.ErrForbidden):
+			return utils.Fail(c, fiber.StatusForbidden, err.Error())
+		case errors.Is(err, services.ErrChatNotFound):
+			return utils.Fail(c, fiber.StatusNotFound, err.Error())
+		}
+		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+	}
+	return utils.OK(c, msg)
+}
+
+func (h *MessageHandler) ListPinned(c *fiber.Ctx) error {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusUnauthorized, "unauthorized")
+	}
+	chatID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "invalid chat id")
+	}
+	msgs, err := h.messages.ListPinned(c.Context(), chatID, userID)
+	if err != nil {
+		if errors.Is(err, services.ErrNotMember) {
+			return utils.Fail(c, fiber.StatusForbidden, err.Error())
+		}
+		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
+	}
+	if msgs == nil {
+		msgs = []models.Message{}
+	}
+	return utils.OK(c, fiber.Map{"messages": msgs})
+}
+
+func (h *MessageHandler) Search(c *fiber.Ctx) error {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusUnauthorized, "unauthorized")
+	}
+	chatID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "invalid chat id")
+	}
+	q := c.Query("q")
+	limit := c.QueryInt("limit", 50)
+	msgs, err := h.messages.Search(c.Context(), chatID, userID, q, limit)
+	if err != nil {
+		if errors.Is(err, services.ErrNotMember) {
+			return utils.Fail(c, fiber.StatusForbidden, err.Error())
+		}
+		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
+	}
+	if msgs == nil {
+		msgs = []models.Message{}
+	}
+	return utils.OK(c, fiber.Map{"messages": msgs})
+}
+
+// Clear handles `DELETE /api/chats/:id/messages`. Direct/saved: any member.
+// Group: admin/owner only. See `MessageService.ClearChat` for details.
+func (h *MessageHandler) Clear(c *fiber.Ctx) error {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusUnauthorized, "unauthorized")
+	}
+	chatID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "invalid chat id")
+	}
+	n, err := h.messages.ClearChat(c.Context(), chatID, userID)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrNotMember):
+			return utils.Fail(c, fiber.StatusForbidden, err.Error())
+		case errors.Is(err, services.ErrForbidden):
+			return utils.Fail(c, fiber.StatusForbidden, err.Error())
+		case errors.Is(err, services.ErrChatNotFound):
+			return utils.Fail(c, fiber.StatusNotFound, err.Error())
+		}
+		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+	}
+	return utils.OK(c, fiber.Map{"cleared": true, "deleted_count": n})
+}

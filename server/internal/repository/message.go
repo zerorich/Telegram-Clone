@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/telegramclone/server/internal/models"
 )
-	
+
 type MessageRepository struct {
 	pool *pgxpool.Pool
 }
@@ -19,29 +20,41 @@ func NewMessageRepository(pool *pgxpool.Pool) *MessageRepository {
 	return &MessageRepository{pool: pool}
 }
 
+// messageColumns is the canonical column list for SELECTs against messages.
+// Kept in one place so any new columns get picked up everywhere we Scan.
+const messageColumns = `id, chat_id, sender_id, type, content, media_url, duration_sec,
+	reply_to_id, is_edited, is_deleted, created_at,
+	is_pinned, pinned_at, forwarded_from_user_id, forwarded_from_chat_id`
+
+func scanMessage(row pgx.Row, m *models.Message) error {
+	return row.Scan(
+		&m.ID, &m.ChatID, &m.SenderID, &m.Type, &m.Content, &m.MediaURL, &m.DurationSec,
+		&m.ReplyToID, &m.IsEdited, &m.IsDeleted, &m.CreatedAt,
+		&m.IsPinned, &m.PinnedAt, &m.ForwardedFromUserID, &m.ForwardedFromChatID,
+	)
+}
+
 func (r *MessageRepository) Create(ctx context.Context, msg *models.Message) error {
 	return r.pool.QueryRow(ctx, `
-		INSERT INTO messages (chat_id, sender_id, type, content, media_url, duration_sec, reply_to_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING id, is_edited, is_deleted, created_at`,
-		msg.ChatID, msg.SenderID, msg.Type, msg.Content, msg.MediaURL, msg.DurationSec, msg.ReplyToID,
-	).Scan(&msg.ID, &msg.IsEdited, &msg.IsDeleted, &msg.CreatedAt)
+		INSERT INTO messages (chat_id, sender_id, type, content, media_url, duration_sec,
+			reply_to_id, forwarded_from_user_id, forwarded_from_chat_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING id, is_edited, is_deleted, created_at, is_pinned, pinned_at`,
+		msg.ChatID, msg.SenderID, msg.Type, msg.Content, msg.MediaURL, msg.DurationSec,
+		msg.ReplyToID, msg.ForwardedFromUserID, msg.ForwardedFromChatID,
+	).Scan(&msg.ID, &msg.IsEdited, &msg.IsDeleted, &msg.CreatedAt, &msg.IsPinned, &msg.PinnedAt)
 }
 
 func (r *MessageRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Message, error) {
 	var m models.Message
-	err := r.pool.QueryRow(ctx, `
-		SELECT id, chat_id, sender_id, type, content, media_url, duration_sec,
-			reply_to_id, is_edited, is_deleted, created_at
-		FROM messages WHERE id = $1`, id,
-	).Scan(
-		&m.ID, &m.ChatID, &m.SenderID, &m.Type, &m.Content, &m.MediaURL, &m.DurationSec,
-		&m.ReplyToID, &m.IsEdited, &m.IsDeleted, &m.CreatedAt,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
+	row := r.pool.QueryRow(ctx, `SELECT `+messageColumns+` FROM messages WHERE id = $1`, id)
+	if err := scanMessage(row, &m); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
 	}
-	return &m, err
+	return &m, nil
 }
 
 func (r *MessageRepository) List(ctx context.Context, chatID uuid.UUID, cursor *models.PaginationCursor, limit int) ([]models.Message, error) {
@@ -50,8 +63,7 @@ func (r *MessageRepository) List(ctx context.Context, chatID uuid.UUID, cursor *
 
 	if cursor != nil {
 		rows, err = r.pool.Query(ctx, `
-			SELECT id, chat_id, sender_id, type, content, media_url, duration_sec,
-				reply_to_id, is_edited, is_deleted, created_at
+			SELECT `+messageColumns+`
 			FROM messages
 			WHERE chat_id = $1 AND is_deleted = FALSE
 			AND (created_at, id) < ($2, $3)
@@ -61,8 +73,7 @@ func (r *MessageRepository) List(ctx context.Context, chatID uuid.UUID, cursor *
 		)
 	} else {
 		rows, err = r.pool.Query(ctx, `
-			SELECT id, chat_id, sender_id, type, content, media_url, duration_sec,
-				reply_to_id, is_edited, is_deleted, created_at
+			SELECT `+messageColumns+`
 			FROM messages
 			WHERE chat_id = $1 AND is_deleted = FALSE
 			ORDER BY created_at DESC, id DESC
@@ -78,10 +89,7 @@ func (r *MessageRepository) List(ctx context.Context, chatID uuid.UUID, cursor *
 	var messages []models.Message
 	for rows.Next() {
 		var m models.Message
-		if err := rows.Scan(
-			&m.ID, &m.ChatID, &m.SenderID, &m.Type, &m.Content, &m.MediaURL, &m.DurationSec,
-			&m.ReplyToID, &m.IsEdited, &m.IsDeleted, &m.CreatedAt,
-		); err != nil {
+		if err := scanMessage(rows, &m); err != nil {
 			return nil, err
 		}
 		messages = append(messages, m)
@@ -159,38 +167,36 @@ func (r *MessageRepository) UnreadCount(ctx context.Context, chatID, userID uuid
 
 func (r *MessageRepository) UpdateText(ctx context.Context, messageID, senderID uuid.UUID, content string) (*models.Message, error) {
 	var m models.Message
-	err := r.pool.QueryRow(ctx, `
+	row := r.pool.QueryRow(ctx, `
 		UPDATE messages SET content = $1, is_edited = TRUE
 		WHERE id = $2 AND sender_id = $3 AND type = 'text' AND is_deleted = FALSE
-		RETURNING id, chat_id, sender_id, type, content, media_url, duration_sec,
-			reply_to_id, is_edited, is_deleted, created_at`,
+		RETURNING `+messageColumns,
 		content, messageID, senderID,
-	).Scan(
-		&m.ID, &m.ChatID, &m.SenderID, &m.Type, &m.Content, &m.MediaURL, &m.DurationSec,
-		&m.ReplyToID, &m.IsEdited, &m.IsDeleted, &m.CreatedAt,
 	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, errors.New("message not found")
+	if err := scanMessage(row, &m); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, errors.New("message not found")
+		}
+		return nil, err
 	}
-	return &m, err
+	return &m, nil
 }
 
 func (r *MessageRepository) SoftDelete(ctx context.Context, messageID, senderID uuid.UUID) (*models.Message, error) {
 	var m models.Message
-	err := r.pool.QueryRow(ctx, `
+	row := r.pool.QueryRow(ctx, `
 		UPDATE messages SET is_deleted = TRUE
 		WHERE id = $1 AND sender_id = $2 AND is_deleted = FALSE
-		RETURNING id, chat_id, sender_id, type, content, media_url, duration_sec,
-			reply_to_id, is_edited, is_deleted, created_at`,
+		RETURNING `+messageColumns,
 		messageID, senderID,
-	).Scan(
-		&m.ID, &m.ChatID, &m.SenderID, &m.Type, &m.Content, &m.MediaURL, &m.DurationSec,
-		&m.ReplyToID, &m.IsEdited, &m.IsDeleted, &m.CreatedAt,
 	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, errors.New("message not found")
+	if err := scanMessage(row, &m); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, errors.New("message not found")
+		}
+		return nil, err
 	}
-	return &m, err
+	return &m, nil
 }
 
 func (r *MessageRepository) ValidateReplyInChat(ctx context.Context, replyID, chatID uuid.UUID) error {
@@ -206,4 +212,114 @@ func (r *MessageRepository) ValidateReplyInChat(ctx context.Context, replyID, ch
 		return fmt.Errorf("reply message not found in chat")
 	}
 	return nil
+}
+
+// Pin marks an existing message as pinned. Returns the refreshed Message row,
+// or ErrNoRows when no message matches (caller should translate to 404).
+func (r *MessageRepository) Pin(ctx context.Context, messageID, chatID uuid.UUID) (*models.Message, error) {
+	var m models.Message
+	row := r.pool.QueryRow(ctx, `
+		UPDATE messages
+		SET is_pinned = TRUE, pinned_at = NOW()
+		WHERE id = $1 AND chat_id = $2 AND is_deleted = FALSE
+		RETURNING `+messageColumns,
+		messageID, chatID,
+	)
+	if err := scanMessage(row, &m); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, errors.New("message not found")
+		}
+		return nil, err
+	}
+	return &m, nil
+}
+
+func (r *MessageRepository) Unpin(ctx context.Context, messageID, chatID uuid.UUID) (*models.Message, error) {
+	var m models.Message
+	row := r.pool.QueryRow(ctx, `
+		UPDATE messages
+		SET is_pinned = FALSE, pinned_at = NULL
+		WHERE id = $1 AND chat_id = $2
+		RETURNING `+messageColumns,
+		messageID, chatID,
+	)
+	if err := scanMessage(row, &m); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, errors.New("message not found")
+		}
+		return nil, err
+	}
+	return &m, nil
+}
+
+func (r *MessageRepository) ListPinned(ctx context.Context, chatID uuid.UUID, limit int) ([]models.Message, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT `+messageColumns+`
+		FROM messages
+		WHERE chat_id = $1 AND is_pinned = TRUE AND is_deleted = FALSE
+		ORDER BY pinned_at DESC
+		LIMIT $2`,
+		chatID, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []models.Message
+	for rows.Next() {
+		var m models.Message
+		if err := scanMessage(rows, &m); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// Search performs a case-insensitive substring match against the `content`
+// column. Empty queries return an empty slice; the caller is expected to clamp
+// the limit but we also defend here.
+func (r *MessageRepository) Search(ctx context.Context, chatID uuid.UUID, query string, limit int) ([]models.Message, error) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return []models.Message{}, nil
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	pattern := "%" + query + "%"
+	rows, err := r.pool.Query(ctx, `
+		SELECT `+messageColumns+`
+		FROM messages
+		WHERE chat_id = $1 AND is_deleted = FALSE AND content ILIKE $2
+		ORDER BY created_at DESC, id DESC
+		LIMIT $3`,
+		chatID, pattern, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []models.Message
+	for rows.Next() {
+		var m models.Message
+		if err := scanMessage(rows, &m); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// ClearChat deletes every message in a chat (including soft-deleted ones).
+// CASCADE on message_reads/forwarded_* FKs is relied upon for cleanup.
+func (r *MessageRepository) ClearChat(ctx context.Context, chatID uuid.UUID) (int64, error) {
+	tag, err := r.pool.Exec(ctx, `DELETE FROM messages WHERE chat_id = $1`, chatID)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }

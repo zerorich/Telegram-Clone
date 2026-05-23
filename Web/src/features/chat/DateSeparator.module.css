@@ -1,0 +1,21 @@
+.row {
+  display: flex;
+  justify-content: center;
+  margin: 14px 0 6px;
+}
+
+.pill {
+  background: rgba(0, 0, 0, 0.32);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+}
+
+[data-theme='light'] .pill {
+  background: rgba(0, 0, 0, 0.18);
+  color: #fff;
+}

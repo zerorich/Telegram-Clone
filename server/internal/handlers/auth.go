@@ -59,8 +59,9 @@ func (h *AuthHandler) VerifyCode(c *fiber.Ctx) error {
 	}
 	if result.IsNewUser {
 		return utils.OK(c, fiber.Map{
-			"is_new_user": true,
-			"verified":    true,
+			"is_new_user":        true,
+			"verified":           true,
+			"registration_token": result.RegistrationToken,
 		})
 	}
 	result.User.PasswordHash = ""
@@ -76,8 +77,15 @@ func (h *AuthHandler) CompleteProfile(c *fiber.Ctx) error {
 	if err := middleware.ValidateBody(c, &req); err != nil {
 		return err
 	}
-	user, tokens, err := h.auth.CompleteProfile(c.Context(), req.Email, req.Name, req.Phone, req.Surname)
+	regToken := middleware.GetBearerToken(c)
+	if regToken == "" {
+		return utils.Fail(c, fiber.StatusUnauthorized, services.ErrInvalidRegistrationTok.Error())
+	}
+	user, tokens, err := h.auth.CompleteProfile(c.Context(), regToken, req.Email, req.Name, req.Phone, req.Surname)
 	if err != nil {
+		if errors.Is(err, services.ErrInvalidRegistrationTok) {
+			return utils.Fail(c, fiber.StatusUnauthorized, err.Error())
+		}
 		if errors.Is(err, services.ErrNotVerified) {
 			return utils.Fail(c, fiber.StatusBadRequest, err.Error())
 		}
@@ -104,6 +112,7 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 	if err := middleware.ValidateBody(c, &req); err != nil {
 		return err
 	}
-	_ = h.auth.Logout(c.Context(), req.RefreshToken)
+	accessToken := middleware.GetBearerToken(c)
+	_ = h.auth.Logout(c.Context(), req.RefreshToken, accessToken)
 	return utils.OK(c, fiber.Map{"message": "logged out"})
 }

@@ -6,19 +6,41 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/fasthttp/websocket"
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 )
 
 const redisChannel = "ws:broadcast"
 
+// WSClient wraps a websocket.Conn with a per-connection write mutex.
+// fasthttp/websocket (like gorilla) does NOT serialize writes per connection,
+// so any goroutine writing to the same conn (e.g. ping ticker + hub broadcast)
+// must hold writeMu before touching SetWriteDeadline / WriteMessage.
+type WSClient struct {
+	Conn    *websocket.Conn
+	writeMu sync.Mutex
+}
+
+// NewWSClient creates a new client wrapper for the given connection.
+func NewWSClient(conn *websocket.Conn) *WSClient {
+	return &WSClient{Conn: conn}
+}
+
+// Write sends a websocket message while holding the per-connection write lock.
+func (c *WSClient) Write(messageType int, data []byte, deadline time.Duration) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	_ = c.Conn.SetWriteDeadline(time.Now().Add(deadline))
+	return c.Conn.WriteMessage(messageType, data)
+}
+
 type Hub struct {
-	rdb       *redis.Client
-	clients   map[uuid.UUID]map[*websocket.Conn]struct{}
-	mu        sync.RWMutex
-	pubsub    *redis.PubSub
+	rdb        *redis.Client
+	clients    map[uuid.UUID]map[*WSClient]struct{}
+	mu         sync.RWMutex
+	pubsub     *redis.PubSub
 	instanceID string
 }
 
@@ -30,7 +52,7 @@ type WSMessage struct {
 func NewHub(rdb *redis.Client) *Hub {
 	return &Hub{
 		rdb:        rdb,
-		clients:    make(map[uuid.UUID]map[*websocket.Conn]struct{}),
+		clients:    make(map[uuid.UUID]map[*WSClient]struct{}),
 		instanceID: uuid.New().String(),
 	}
 }
@@ -71,20 +93,20 @@ func (h *Hub) listenRedis(ctx context.Context) {
 	}
 }
 
-func (h *Hub) Register(userID uuid.UUID, conn *websocket.Conn) {
+func (h *Hub) Register(userID uuid.UUID, client *WSClient) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.clients[userID] == nil {
-		h.clients[userID] = make(map[*websocket.Conn]struct{})
+		h.clients[userID] = make(map[*WSClient]struct{})
 	}
-	h.clients[userID][conn] = struct{}{}
+	h.clients[userID][client] = struct{}{}
 }
 
-func (h *Hub) Unregister(userID uuid.UUID, conn *websocket.Conn) {
+func (h *Hub) Unregister(userID uuid.UUID, client *WSClient) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if conns, ok := h.clients[userID]; ok {
-		delete(conns, conn)
+		delete(conns, client)
 		if len(conns) == 0 {
 			delete(h.clients, userID)
 		}
@@ -96,14 +118,19 @@ func (h *Hub) deliverLocal(userIDs []uuid.UUID, msg WSMessage) {
 	if err != nil {
 		return
 	}
+	// Snapshot target clients under RLock, then release the lock before
+	// performing any blocking writes; each client's writeMu serializes writes.
+	targets := make([]*WSClient, 0, 8)
 	h.mu.RLock()
-	defer h.mu.RUnlock()
 	for _, uid := range userIDs {
-		for conn := range h.clients[uid] {
-			_ = conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-			if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
-				log.Debug().Err(err).Str("user_id", uid.String()).Msg("ws write failed")
-			}
+		for c := range h.clients[uid] {
+			targets = append(targets, c)
+		}
+	}
+	h.mu.RUnlock()
+	for _, c := range targets {
+		if err := c.Write(websocket.TextMessage, data, 10*time.Second); err != nil {
+			log.Debug().Err(err).Msg("ws write failed")
 		}
 	}
 }

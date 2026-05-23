@@ -1,0 +1,69 @@
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 12px 6px 14px;
+  background: color-mix(in srgb, var(--bg-elev) 85%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--divider);
+  border-left: 3px solid var(--brand);
+  color: var(--text);
+  text-align: left;
+  width: 100%;
+  transition: background 0.12s;
+}
+
+.bar:hover {
+  background: var(--bg-hover);
+}
+
+.pin {
+  color: var(--brand);
+  flex-shrink: 0;
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand);
+  line-height: 1.2;
+}
+
+.count {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.snippet {
+  font-size: 13px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unpin {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.unpin:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}

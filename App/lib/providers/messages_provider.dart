@@ -25,10 +25,11 @@ class MessagesState {
     String? nextCursor,
     bool? isLoadingMore,
     bool? hasMore,
+    bool clearNextCursor = false,
   }) {
     return MessagesState(
       messages: messages ?? this.messages,
-      nextCursor: nextCursor ?? this.nextCursor,
+      nextCursor: clearNextCursor ? null : (nextCursor ?? this.nextCursor),
       isLoadingMore: isLoadingMore ?? this.isLoadingMore,
       hasMore: hasMore ?? this.hasMore,
     );
@@ -129,20 +130,26 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
     if (state.messages.any((m) => m.id == msg.id)) return;
     state = state.copyWith(messages: _sort([...state.messages, msg]));
     _repo.cacheMessages(chatId, state.messages);
-    _ref.read(chatsListProvider.notifier).onNewMessage({
-      'id': msg.id,
-      'chat_id': msg.chatId,
-      'sender_id': msg.senderId,
-      'type': msg.type.name,
-      'content': msg.content,
-      'media_url': msg.mediaUrl,
-      'duration_sec': msg.durationSec,
-      'reply_to_id': msg.replyToId,
-      'is_edited': msg.isEdited,
-      'is_deleted': msg.isDeleted,
-      'created_at': msg.createdAt.toIso8601String(),
-    });
+    _ref.read(chatsListProvider.notifier).onNewMessage(_msgToJson(msg));
   }
+
+  Map<String, dynamic> _msgToJson(MessageModel msg) => {
+        'id': msg.id,
+        'chat_id': msg.chatId,
+        'sender_id': msg.senderId,
+        'type': messageTypeToString(msg.type),
+        'content': msg.content,
+        'media_url': msg.mediaUrl,
+        'duration_sec': msg.durationSec,
+        'reply_to_id': msg.replyToId,
+        'is_edited': msg.isEdited,
+        'is_deleted': msg.isDeleted,
+        'is_pinned': msg.isPinned,
+        if (msg.pinnedAt != null) 'pinned_at': msg.pinnedAt!.toIso8601String(),
+        'forwarded_from_user_id': msg.forwardedFromUserId,
+        'forwarded_from_chat_id': msg.forwardedFromChatId,
+        'created_at': msg.createdAt.toIso8601String(),
+      };
 
   void onNewMessage(Map<String, dynamic> data) {
     final msg = MessageModel.fromJson(data);
@@ -155,12 +162,6 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
     if (msg.chatId != chatId) return;
     final idx = state.messages.indexWhere((m) => m.id == msg.id);
     if (idx < 0) return;
-    final existing = state.messages[idx];
-    if (existing.content == msg.content &&
-        existing.isEdited == msg.isEdited &&
-        existing.isDeleted == msg.isDeleted) {
-      return;
-    }
     _applyMessagePatch(msg);
   }
 
@@ -171,6 +172,26 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
     if (idx < 0) return;
     if (state.messages[idx].isDeleted) return;
     _applyMessagePatch(msg);
+  }
+
+  /// Used by ws_provider for `message.pinned` / `message.unpinned` events.
+  void onMessagePinned(Map<String, dynamic> data) {
+    final msg = MessageModel.fromJson(data);
+    if (msg.chatId != chatId) return;
+    final idx = state.messages.indexWhere((m) => m.id == msg.id);
+    if (idx < 0) return;
+    _applyMessagePatch(msg);
+    _ref.read(pinnedMessagesProvider(chatId).notifier).upsert(msg);
+  }
+
+  /// Server signalled the entire history was wiped.
+  void onChatCleared() {
+    state = const MessagesState(
+      messages: [],
+      hasMore: false,
+    );
+    _repo.clearCachedMessages(chatId);
+    _ref.read(pinnedMessagesProvider(chatId).notifier).clear();
   }
 
   void _applyMessagePatch(MessageModel msg) {
@@ -203,12 +224,71 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
     }
   }
 
+  Future<MessageModel?> forwardTo({
+    required String targetChatId,
+    required String messageId,
+  }) async {
+    try {
+      final msg = await _repo.forward(
+        targetChatId: targetChatId,
+        sourceChatId: chatId,
+        messageId: messageId,
+      );
+      // If the target chat is currently loaded, surface the new message.
+      if (_ref.exists(messagesProvider(targetChatId))) {
+        _ref
+            .read(messagesProvider(targetChatId).notifier)
+            ._addMessage(msg);
+      } else {
+        // Otherwise let the chats list refresh its last-message preview.
+        _ref.read(chatsListProvider.notifier).onNewMessage(_msgToJson(msg));
+      }
+      return msg;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Toggles pin on the given message. Returns true on success.
+  Future<bool> togglePin(MessageModel msg) async {
+    try {
+      final updated = msg.isPinned
+          ? await _repo.unpin(chatId, msg.id)
+          : await _repo.pin(chatId, msg.id);
+      _applyMessagePatch(updated);
+      _ref.read(pinnedMessagesProvider(chatId).notifier).upsert(updated);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> clearHistory() async {
+    try {
+      await _repo.clearHistory(chatId);
+      onChatCleared();
+      _ref.read(chatsListProvider.notifier).onChatCleared(chatId);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<List<MessageModel>> search(String query) async {
+    final q = query.trim();
+    if (q.isEmpty) return const [];
+    try {
+      return await _repo.search(chatId, query: q);
+    } catch (_) {
+      return const [];
+    }
+  }
+
   void onMessageRead(Map<String, dynamic> data) {
     final messageId = data['message_id']?.toString();
     final readerId = data['user_id']?.toString();
     final me = _ref.read(authProvider).user?.id;
     if (messageId == null || me == null || readerId == null) return;
-    // Read receipts apply to our outgoing messages when someone else reads them.
     if (readerId == me) return;
 
     MessageModel? anchor;
@@ -255,6 +335,16 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
 
     _ref.read(wsServiceProvider).sendRead(chatId, latest.id);
   }
+
+  /// Pages through history until either the message is found or we exhaust
+  /// the cursor / hit the iteration limit. Used by "В начало".
+  Future<void> loadAllHistory({int maxBatches = 10}) async {
+    var batches = 0;
+    while (state.hasMore && batches < maxBatches) {
+      await loadMore();
+      batches += 1;
+    }
+  }
 }
 
 final messagesProvider =
@@ -265,3 +355,44 @@ final messagesProvider =
 );
 
 final replyToProvider = StateProvider.family<MessageModel?, String>((ref, _) => null);
+
+class PinnedMessagesNotifier extends StateNotifier<List<MessageModel>> {
+  PinnedMessagesNotifier(this._repo, this.chatId) : super(const []) {
+    _load();
+  }
+
+  final MessageRepository _repo;
+  final String chatId;
+
+  Future<void> _load() async {
+    try {
+      final list = await _repo.getPinned(chatId);
+      state = list;
+    } catch (_) {
+      // Server may not expose pinned endpoint yet — degrade silently.
+      state = const [];
+    }
+  }
+
+  Future<void> refresh() => _load();
+
+  void upsert(MessageModel msg) {
+    final without = state.where((m) => m.id != msg.id).toList();
+    if (msg.isPinned && !msg.isDeleted) {
+      without.insert(0, msg);
+    }
+    without.sort((a, b) {
+      final ap = a.pinnedAt ?? a.createdAt;
+      final bp = b.pinnedAt ?? b.createdAt;
+      return bp.compareTo(ap);
+    });
+    state = without;
+  }
+
+  void clear() => state = const [];
+}
+
+final pinnedMessagesProvider = StateNotifierProvider.autoDispose
+    .family<PinnedMessagesNotifier, List<MessageModel>, String>((ref, chatId) {
+  return PinnedMessagesNotifier(ref.watch(messageRepositoryProvider), chatId);
+});
