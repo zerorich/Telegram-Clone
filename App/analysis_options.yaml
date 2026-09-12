@@ -1,6 +1,20 @@
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  language:
+    strict-casts: true
+
 linter:
   rules:
     prefer_const_constructors: true
-    avoid_print: false
+    prefer_const_declarations: true
+    prefer_final_fields: true
+    prefer_final_locals: true
+    avoid_print: true
+    require_trailing_commas: true
+    always_declare_return_types: true
+    avoid_empty_else: true
+    cancel_subscriptions: true
+    close_sinks: true
+    unnecessary_await_in_return: true
+    use_build_context_synchronously: true

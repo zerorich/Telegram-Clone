@@ -3,9 +3,12 @@ import 'package:telegramclone/core/di.dart';
 import 'package:telegramclone/data/models/message.dart';
 import 'package:telegramclone/data/repositories/auth_repository.dart';
 import 'package:telegramclone/data/websocket/ws_client.dart';
+import 'package:telegramclone/providers/active_chat_provider.dart';
 import 'package:telegramclone/providers/auth_provider.dart';
+import 'package:telegramclone/providers/call_provider.dart';
 import 'package:telegramclone/providers/chats_provider.dart';
 import 'package:telegramclone/providers/messages_provider.dart';
+import 'package:telegramclone/services/notification_service.dart';
 
 class WsService {
   final WsClient _client;
@@ -29,6 +32,7 @@ class WsService {
         if (chatId != null && _ref.exists(messagesProvider(chatId))) {
           _ref.read(messagesProvider(chatId).notifier).onNewMessage(data);
         }
+        _maybeNotify(data);
         break;
       case 'message.updated':
       case 'message.deleted':
@@ -108,6 +112,60 @@ class WsService {
               data['is_online'] as bool? ?? false,
             );
         break;
+      case 'call.offer':
+        _ref.read(callServiceProvider).handleOffer(data);
+        break;
+      case 'call.answer':
+        _ref.read(callServiceProvider).handleAnswer(data);
+        break;
+      case 'call.ice':
+        _ref.read(callServiceProvider).handleIce(data);
+        break;
+      case 'call.end':
+        _ref.read(callServiceProvider).handleRemoteEnd(data);
+        break;
+    }
+  }
+
+  void _maybeNotify(Map<String, dynamic> data) {
+    if (!_ref.read(appInBackgroundProvider)) return;
+    final me = _ref.read(authProvider).user?.id;
+    final senderId = data['sender_id']?.toString();
+    if (me != null && senderId == me) return;
+
+    final active = _ref.read(activeChatIdProvider);
+    final chatId = data['chat_id']?.toString();
+    if (active != null && active == chatId) return;
+
+    final msg = MessageModel.fromJson(data);
+    final chats = _ref.read(chatsListProvider).valueOrNull ?? const [];
+    var title = 'Новое сообщение';
+    for (final c in chats) {
+      if (c.id == chatId) {
+        title = c.displayTitle(me ?? '');
+        break;
+      }
+    }
+    final body = msg.content ?? _preview(msg.type);
+    NotificationService.instance.showMessageNotification(
+      title: title,
+      body: body,
+      chatId: chatId ?? '',
+    );
+  }
+
+  String _preview(MessageType type) {
+    switch (type) {
+      case MessageType.image:
+        return 'Фото';
+      case MessageType.video:
+        return 'Видео';
+      case MessageType.voice:
+        return 'Голосовое сообщение';
+      case MessageType.file:
+        return 'Файл';
+      default:
+        return 'Сообщение';
     }
   }
 
@@ -125,6 +183,8 @@ final wsServiceProvider = Provider<WsService>((ref) {
     ref,
   );
 });
+
+final appInBackgroundProvider = StateProvider<bool>((ref) => false);
 
 final onlineUsersProvider =
     StateNotifierProvider<OnlineUsersNotifier, Map<String, bool>>((ref) {

@@ -20,9 +20,9 @@ class AuthRepository {
 
   Future<void> saveSession(UserModel user, TokenPair tokens) async {
     await _storage.write(
-        key: AppConstants.accessTokenKey, value: tokens.accessToken);
+        key: AppConstants.accessTokenKey, value: tokens.accessToken,);
     await _storage.write(
-        key: AppConstants.refreshTokenKey, value: tokens.refreshToken);
+        key: AppConstants.refreshTokenKey, value: tokens.refreshToken,);
     await _storage.write(key: AppConstants.userIdKey, value: user.id);
   }
 

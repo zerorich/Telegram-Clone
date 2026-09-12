@@ -5,6 +5,7 @@ import 'package:telegramclone/data/api/auth_api.dart';
 import 'package:telegramclone/data/models/user.dart';
 import 'package:telegramclone/data/repositories/auth_repository.dart';
 import 'package:telegramclone/providers/ws_provider.dart';
+import 'package:telegramclone/services/fcm_service.dart';
 
 class AuthDraft {
   String email = '';
@@ -40,7 +41,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       final user = await _ref.read(usersApiProvider).getMe();
       state = AuthState(status: AuthStatus.authenticated, user: user);
-      _ref.read(wsServiceProvider).connect();
+      await _ref.read(wsServiceProvider).connect();
+      await _registerPushToken();
     } catch (_) {
       state = const AuthState(status: AuthStatus.unauthenticated);
     }
@@ -55,6 +57,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       AppConstants.cachedAccessToken = result.tokens!.accessToken;
       state = AuthState(status: AuthStatus.authenticated, user: result.user);
       await _ref.read(wsServiceProvider).connect();
+      await _registerPushToken();
     }
     return result;
   }
@@ -76,6 +79,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
     AppConstants.cachedAccessToken = result.tokens.accessToken;
     state = AuthState(status: AuthStatus.authenticated, user: result.user);
     await _ref.read(wsServiceProvider).connect();
+    await _registerPushToken();
+  }
+
+  Future<void> _registerPushToken() async {
+    await FcmService.instance.init(
+      devicesApi: _ref.read(devicesApiProvider),
+    );
+    await FcmService.instance.registerTokenAfterLogin();
   }
 
   Future<void> logout() => _signOut(callServer: true);
@@ -94,6 +105,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         await _auth.clearLocalSession();
       }
     } finally {
+      await FcmService.instance.clearRegistration();
       AppConstants.cachedAccessToken = null;
       state = const AuthState(status: AuthStatus.unauthenticated);
     }

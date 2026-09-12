@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:telegramclone/core/constants.dart';
 import 'package:telegramclone/core/di.dart';
 import 'package:telegramclone/core/theme.dart';
+import 'package:telegramclone/core/theme_extensions.dart';
 import 'package:telegramclone/data/models/user.dart';
 import 'package:telegramclone/providers/ws_provider.dart';
 
@@ -90,9 +91,9 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen>
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        backgroundColor: AppColors.darkBg,
-        body: Center(
+      return Scaffold(
+        backgroundColor: context.scaffoldBg,
+        body: const Center(
           child: CircularProgressIndicator(color: AppColors.teal),
         ),
       );
@@ -101,9 +102,9 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen>
     final user = _user;
     if (user == null) {
       return Scaffold(
-        backgroundColor: AppColors.darkBg,
+        backgroundColor: context.scaffoldBg,
         appBar: AppBar(
-          backgroundColor: AppColors.darkAppBar,
+          backgroundColor: context.appBarBg,
           leading: const BackButton(),
         ),
         body: Center(
@@ -112,8 +113,8 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.person_off_rounded,
-                    size: 64, color: AppColors.darkSubtitle),
+                Icon(Icons.person_off_rounded,
+                    size: 64, color: context.subtitleColor,),
                 const SizedBox(height: 16),
                 Text(
                   _error ?? 'Пользователь не найден',
@@ -126,7 +127,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen>
                   icon: const Icon(Icons.refresh_rounded),
                   label: const Text('Повторить'),
                   style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.teal),
+                      backgroundColor: AppColors.teal,),
                 ),
               ],
             ),
@@ -139,7 +140,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen>
         ref.watch(onlineUsersProvider)[widget.userId] ?? false;
 
     return Scaffold(
-      backgroundColor: AppColors.darkBg,
+      backgroundColor: context.scaffoldBg,
       body: FadeTransition(
         opacity: _fadeAnim,
         child: CustomScrollView(
@@ -148,7 +149,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen>
             SliverAppBar(
               expandedHeight: 280,
               pinned: true,
-              backgroundColor: AppColors.darkAppBar,
+              backgroundColor: context.appBarBg,
               leading: IconButton(
                 icon: const Icon(
                   Icons.arrow_back_ios_new_rounded,
@@ -364,7 +365,7 @@ class _InfoCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(top: 8),
       decoration: BoxDecoration(
-        color: AppColors.darkTileHighlight,
+        color: context.tileHighlight,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -372,10 +373,10 @@ class _InfoCard extends StatelessWidget {
           for (int i = 0; i < items.length; i++) ...[
             _InfoRowTile(row: items[i]),
             if (i < items.length - 1)
-              const Divider(
+              Divider(
                 height: 1,
                 indent: 56,
-                color: AppColors.darkDivider,
+                color: context.dividerColor,
               ),
           ],
         ],
@@ -405,29 +406,36 @@ class _InfoRowTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    return Semantics(
+      label: '${row.label}: ${row.value}',
+      child: ListTile(
       leading: Icon(row.icon, color: AppColors.teal, size: 22),
       title: Text(
         row.value,
-        style: const TextStyle(color: Colors.white, fontSize: 15.5),
+        style: TextStyle(color: context.primaryText, fontSize: 15.5),
       ),
       subtitle: Text(
         row.label,
-        style: const TextStyle(color: AppColors.darkSubtitle, fontSize: 12.5),
+        style: TextStyle(color: context.subtitleColor, fontSize: 12.5),
       ),
       trailing: row.canCopy
-          ? IconButton(
-              icon: const Icon(Icons.copy_rounded,
-                  size: 18, color: AppColors.darkSubtitle),
+          ? Semantics(
+              label: 'Скопировать ${row.label}',
+              button: true,
+              child: IconButton(
+              icon: Icon(Icons.copy_rounded,
+                  size: 18, color: context.subtitleColor,),
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: row.value));
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Скопировано')),
                 );
               },
+            ),
             )
           : null,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+    ),
     );
   }
 }

@@ -5,7 +5,7 @@ Future<void> initAppAudio() async {
   try {
     await AudioPlayer.global.setAudioContext(
     AudioContext(
-      android: AudioContextAndroid(
+      android: const AudioContextAndroid(
         isSpeakerphoneOn: true,
         stayAwake: true,
         contentType: AndroidContentType.speech,
@@ -14,7 +14,7 @@ Future<void> initAppAudio() async {
       ),
       iOS: AudioContextIOS(
         category: AVAudioSessionCategory.playback,
-        options: {
+        options: const {
           AVAudioSessionOptions.defaultToSpeaker,
           AVAudioSessionOptions.mixWithOthers,
         },

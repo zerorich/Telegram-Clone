@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:telegramclone/core/error_utils.dart';
 import 'package:telegramclone/core/theme.dart';
+import 'package:telegramclone/core/theme_extensions.dart';
 import 'package:telegramclone/providers/auth_provider.dart';
 import 'package:telegramclone/ui/widgets/otp_input.dart';
 
@@ -127,15 +128,15 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
     final topGap = compact ? 8.0 : 16.0;
 
     return Scaffold(
-      backgroundColor: AppColors.darkBg,
+      backgroundColor: context.scaffoldBg,
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(
+          icon: Icon(
             Icons.arrow_back_ios_new_rounded,
-            color: Colors.white,
+            color: context.primaryText,
           ),
           onPressed: () => context.pop(),
         ),
@@ -175,7 +176,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
                         'Введите код',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: Colors.white,
+                          color: context.primaryText,
                           fontSize: titleFontSize,
                           fontWeight: FontWeight.w700,
                         ),
@@ -184,8 +185,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
                       Text(
                         'Мы отправили 6-значный код на\n$email',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.darkSubtitle,
+                        style: TextStyle(
+                          color: context.subtitleColor,
                           fontSize: 14.5,
                           height: 1.4,
                         ),
@@ -228,12 +229,12 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
                               ? Padding(
                                   key: const ValueKey('countdown'),
                                   padding: const EdgeInsets.symmetric(
-                                      vertical: 10),
+                                      vertical: 10,),
                                   child: Text(
                                     'Повторная отправка через $_resendCountdown с',
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      color: AppColors.darkSubtitle,
+                                    style: TextStyle(
+                                      color: context.subtitleColor,
                                       fontSize: 13.5,
                                     ),
                                   ),

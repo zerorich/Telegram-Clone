@@ -116,6 +116,42 @@ class MessageModel extends Equatable {
     );
   }
 
+  Map<String, dynamic> toJson({bool forCache = false}) {
+    final map = <String, dynamic>{
+      'id': id,
+      'chat_id': chatId,
+      'sender_id': senderId,
+      'type': messageTypeToString(type),
+      'content': content,
+      'media_url': mediaUrl,
+      'duration_sec': durationSec,
+      'reply_to_id': replyToId,
+      'is_edited': isEdited,
+      'is_deleted': isDeleted,
+      'is_pinned': isPinned,
+      if (pinnedAt != null) 'pinned_at': pinnedAt!.toIso8601String(),
+      'forwarded_from_user_id': forwardedFromUserId,
+      'forwarded_from_chat_id': forwardedFromChatId,
+      'created_at': createdAt.toIso8601String(),
+    };
+    if (forCache) {
+      map['is_read'] = isRead;
+      if (forwardedFromUser != null) {
+        map['forwarded_from_user'] = {
+          'id': forwardedFromUser!.id,
+          'phone': forwardedFromUser!.phone,
+          'email': forwardedFromUser!.email,
+          'name': forwardedFromUser!.name,
+          'surname': forwardedFromUser!.surname,
+          'username': forwardedFromUser!.username,
+          'avatar_url': forwardedFromUser!.avatarUrl,
+          'is_verified': forwardedFromUser!.isVerified,
+        };
+      }
+    }
+    return map;
+  }
+
   MessageModel copyWith({
     bool? isRead,
     bool? isEdited,

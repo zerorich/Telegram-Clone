@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:telegramclone/core/error_utils.dart';
 import 'package:telegramclone/core/theme.dart';
+import 'package:telegramclone/core/theme_extensions.dart';
 import 'package:telegramclone/providers/auth_provider.dart';
 
 class CompleteProfileScreen extends ConsumerStatefulWidget {
@@ -85,12 +86,12 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.darkBg,
+      backgroundColor: context.scaffoldBg,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.primaryText),
           onPressed: () => context.pop(),
         ),
       ),
@@ -122,16 +123,16 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen>
                             height: 96,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: AppColors.darkTileHighlight,
+                              color: context.tileHighlight,
                               border: Border.all(
                                 color: AppColors.teal.withValues(alpha: 0.4),
                                 width: 2,
                               ),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.person_rounded,
                               size: 52,
-                              color: AppColors.darkSubtitle,
+                              color: context.subtitleColor,
                             ),
                           ),
                           Positioned(
@@ -154,21 +155,21 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen>
                         ],
                       ),
                       const SizedBox(height: 20),
-                      const Text(
+                      Text(
                         'Ваш профиль',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: Colors.white,
+                          color: context.primaryText,
                           fontSize: 26,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         'Введите ваше имя для завершения\nрегистрации',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: AppColors.darkSubtitle,
+                          color: context.subtitleColor,
                           fontSize: 15.5,
                           height: 1.4,
                         ),
@@ -186,6 +187,7 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen>
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _buildTextField(
+                        context,
                         controller: _nameCtrl,
                         label: 'Имя *',
                         hint: 'Введите ваше имя',
@@ -193,6 +195,7 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen>
                       ),
                       const SizedBox(height: 14),
                       _buildTextField(
+                        context,
                         controller: _surnameCtrl,
                         label: 'Фамилия',
                         hint: 'Введите вашу фамилию (необязательно)',
@@ -245,33 +248,37 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen>
     );
   }
 
-  Widget _buildTextField({
+  Widget _buildTextField(
+    BuildContext context, {
     required TextEditingController controller,
     required String label,
     required String hint,
     required IconData icon,
   }) {
-    return Container(
+    return Semantics(
+      label: label,
+      textField: true,
+      child: Container(
       decoration: BoxDecoration(
-        color: AppColors.darkTileHighlight,
+        color: context.tileHighlight,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: AppColors.darkSubtitle.withValues(alpha: 0.15),
+          color: context.subtitleColor.withValues(alpha: 0.15),
         ),
       ),
       child: TextField(
         controller: controller,
         textCapitalization: TextCapitalization.words,
-        style: const TextStyle(color: Colors.white, fontSize: 16),
+        style: TextStyle(color: context.primaryText, fontSize: 16),
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
-          labelStyle: const TextStyle(color: AppColors.darkSubtitle),
-          hintStyle: const TextStyle(
-            color: AppColors.darkSubtitle,
+          labelStyle: TextStyle(color: context.subtitleColor),
+          hintStyle: TextStyle(
+            color: context.subtitleColor,
             fontSize: 14,
           ),
-          prefixIcon: Icon(icon, color: AppColors.darkSubtitle),
+          prefixIcon: Icon(icon, color: context.subtitleColor),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide.none,
@@ -288,6 +295,7 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen>
           fillColor: Colors.transparent,
         ),
       ),
+    ),
     );
   }
 }

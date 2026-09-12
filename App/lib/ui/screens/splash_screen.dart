@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:telegramclone/core/theme.dart';
+import 'package:telegramclone/core/theme_extensions.dart';
 import 'package:telegramclone/providers/auth_provider.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -68,7 +69,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.darkBg,
+      backgroundColor: context.scaffoldBg,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -122,10 +123,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             const SizedBox(height: 32),
             FadeTransition(
               opacity: _fadeAnim,
-              child: const Text(
+              child: Text(
                 'Telegram',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: context.primaryText,
                   fontSize: 28,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.5,

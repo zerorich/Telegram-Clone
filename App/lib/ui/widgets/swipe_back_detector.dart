@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:telegramclone/core/theme.dart';
+import 'package:telegramclone/core/theme_extensions.dart';
 
 /// iOS-style back gesture from the left edge.
 ///
@@ -200,8 +200,7 @@ class _SwipeBackDetectorState extends State<SwipeBackDetector>
                           height: 30,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: AppColors.darkTileHighlight
-                                .withValues(alpha: 0.88),
+                            color: context.tileHighlight.withValues(alpha: 0.88),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black

@@ -38,18 +38,18 @@ class ChatsApi {
       form.fields.add(MapEntry(
         'member_ids',
         '[${memberIds.map((id) => '"$id"').join(',')}]',
-      ));
+      ),);
       form.files.add(MapEntry(
         'avatar',
         await MultipartFile.fromFile(avatarPath),
-      ));
+      ),);
       final res = await _dio.post('/api/chats/group', data: form);
       return ChatModel.fromJson(_parseData(res.data));
     }
     final res = await _dio.post('/api/chats/group', data: {
       'name': name,
       'member_ids': memberIds,
-    });
+    },);
     return ChatModel.fromJson(_parseData(res.data));
   }
 
@@ -75,14 +75,14 @@ class ChatsApi {
     }
     final res = await _dio.patch('/api/chats/$chatId', data: {
       if (name != null) 'name': name,
-    });
+    },);
     return ChatModel.fromJson(_parseData(res.data));
   }
 
   Future<void> addMembers(String chatId, List<String> memberIds) async {
     final res = await _dio.post('/api/chats/$chatId/members', data: {
       'member_ids': memberIds,
-    });
+    },);
     _ensureSuccess(res.data);
   }
 

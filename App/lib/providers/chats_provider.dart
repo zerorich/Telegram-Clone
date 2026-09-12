@@ -187,34 +187,19 @@ class ChatsListNotifier extends StateNotifier<AsyncValue<List<ChatModel>>> {
     });
   }
 
-  Future<bool> mute(String chatId, {DateTime? until}) async {
-    try {
-      await _repo.mute(chatId, until: until);
-      onChatMuted(chatId, until ?? DateTime.utc(9999));
-      return true;
-    } catch (_) {
-      return false;
-    }
+  Future<void> mute(String chatId, {DateTime? until}) async {
+    await _repo.mute(chatId, until: until);
+    onChatMuted(chatId, until ?? DateTime.utc(9999));
   }
 
-  Future<bool> unmute(String chatId) async {
-    try {
-      await _repo.unmute(chatId);
-      onChatMuted(chatId, null);
-      return true;
-    } catch (_) {
-      return false;
-    }
+  Future<void> unmute(String chatId) async {
+    await _repo.unmute(chatId);
+    onChatMuted(chatId, null);
   }
 
-  Future<bool> deleteChat(String chatId) async {
-    try {
-      await _repo.deleteChat(chatId);
-      onChatDeleted(chatId);
-      return true;
-    } catch (_) {
-      return false;
-    }
+  Future<void> deleteChat(String chatId) async {
+    await _repo.deleteChat(chatId);
+    onChatDeleted(chatId);
   }
 
   bool _cacheMissingMembers(List<ChatModel> chats) {

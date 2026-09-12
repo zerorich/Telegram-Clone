@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:telegramclone/core/error_utils.dart';
 import 'package:telegramclone/core/theme.dart';
+import 'package:telegramclone/core/theme_extensions.dart';
 import 'package:telegramclone/providers/auth_provider.dart';
 import 'package:telegramclone/providers/chats_provider.dart';
 import 'package:telegramclone/ui/widgets/app_drawer.dart';
 import 'package:telegramclone/ui/widgets/chat_tile.dart';
+import 'package:telegramclone/ui/widgets/send_to_chat_sheet.dart';
 import 'package:telegramclone/ui/widgets/telegram_fabs.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -46,7 +51,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: AppColors.darkList,
+      backgroundColor: context.scaffoldBg,
       drawer: const AppDrawer(),
       body: SafeArea(
         bottom: false,
@@ -80,7 +85,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           .where((c) => c
                               .displayTitle(userId)
                               .toLowerCase()
-                              .contains(_query.toLowerCase()))
+                              .contains(_query.toLowerCase()),)
                           .toList();
 
                   if (filtered.isEmpty) {
@@ -89,7 +94,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
                   return RefreshIndicator(
                     color: AppColors.teal,
-                    backgroundColor: AppColors.darkTileHighlight,
+                    backgroundColor: context.tileHighlight,
                     onRefresh: () =>
                         ref.read(chatsListProvider.notifier).load(refresh: true),
                     child: ListView.builder(
@@ -98,18 +103,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         index: i,
                         child: Column(
                           children: [
-                            ChatTile(
-                              chat: filtered[i],
-                              currentUserId: userId,
-                              onTap: () =>
-                                  context.push('/chat/${filtered[i].id}'),
+                            Semantics(
+                              label: 'Чат ${filtered[i].displayTitle(userId)}',
+                              button: true,
+                              child: ChatTile(
+                                chat: filtered[i],
+                                currentUserId: userId,
+                                onTap: () =>
+                                    context.push('/chat/${filtered[i].id}'),
+                              ),
                             ),
                             if (i < filtered.length - 1)
-                              const Divider(
+                              Divider(
                                 height: 1,
                                 indent: 78,
                                 endIndent: 0,
-                                color: AppColors.darkDivider,
+                                color: context.dividerColor,
                               ),
                           ],
                         ),
@@ -124,15 +133,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ),
       floatingActionButton: TelegramFabs(
         onEdit: () => _showNewChatOptions(context),
-        onCamera: () => context.push('/new-chat'),
+        onCamera: () => _openCameraAndSend(context),
       ),
     );
+  }
+
+  Future<void> _openCameraAndSend(BuildContext context) async {
+    final cam = await Permission.camera.request();
+    if (!mounted) return;
+    if (!cam.isGranted) {
+      ScaffoldMessenger.of(this.context).showSnackBar(
+        const SnackBar(content: Text('Нужен доступ к камере')),
+      );
+      return;
+    }
+    final file = await ImagePicker().pickImage(source: ImageSource.camera);
+    if (file == null || !mounted) return;
+    await showSendCaptureSheet(this.context, ref, filePath: file.path);
   }
 
   void _showNewChatOptions(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.darkTileHighlight,
+      backgroundColor: context.tileHighlight,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -145,7 +168,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColors.darkSubtitle.withValues(alpha: 0.4),
+                color: context.subtitleColor.withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -161,9 +184,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 child: const Icon(Icons.person_add_outlined, color: Colors.white),
               ),
               title: const Text('Новое сообщение',
-                  style: TextStyle(color: Colors.white, fontSize: 16)),
-              subtitle: const Text('Написать пользователю',
-                  style: TextStyle(color: AppColors.darkSubtitle, fontSize: 13)),
+                  style: TextStyle(color: Colors.white, fontSize: 16),),
+              subtitle: Text('Написать пользователю',
+                  style: TextStyle(color: context.subtitleColor, fontSize: 13),),
               onTap: () {
                 Navigator.pop(ctx);
                 context.push('/new-chat');
@@ -180,9 +203,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 child: const Icon(Icons.group_add_outlined, color: Colors.white),
               ),
               title: const Text('Новая группа',
-                  style: TextStyle(color: Colors.white, fontSize: 16)),
-              subtitle: const Text('Создать групповой чат',
-                  style: TextStyle(color: AppColors.darkSubtitle, fontSize: 13)),
+                  style: TextStyle(color: Colors.white, fontSize: 16),),
+              subtitle: Text('Создать групповой чат',
+                  style: TextStyle(color: context.subtitleColor, fontSize: 13),),
               onTap: () {
                 Navigator.pop(ctx);
                 context.push('/new-group');
@@ -268,10 +291,10 @@ class _HomeAppBar extends StatelessWidget {
     return Container(
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 4),
-      decoration: const BoxDecoration(
-        color: AppColors.darkAppBar,
+      decoration: BoxDecoration(
+        color: context.appBarBg,
         border: Border(
-          bottom: BorderSide(color: AppColors.darkDivider, width: 0.5),
+          bottom: BorderSide(color: context.dividerColor, width: 0.5),
         ),
       ),
       child: Row(
@@ -325,7 +348,7 @@ class _LoadingView extends StatelessWidget {
           Text(
             'Загрузка...',
             style: TextStyle(
-              color: AppColors.darkSubtitle.withValues(alpha: 0.7),
+              color: context.subtitleColor.withValues(alpha: 0.7),
               fontSize: 14,
             ),
           ),
@@ -349,21 +372,21 @@ class _ErrorView extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.wifi_off_rounded,
               size: 64,
-              color: AppColors.darkSubtitle,
+              color: context.subtitleColor,
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Ошибка загрузки',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+              style: TextStyle(color: context.primaryText, fontSize: 18, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
             Text(
-              error.toString(),
+              friendlyError(error),
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.darkSubtitle, fontSize: 14),
+              style: TextStyle(color: context.subtitleColor, fontSize: 14),
             ),
             const SizedBox(height: 24),
             FilledButton.icon(
@@ -423,8 +446,8 @@ class _EmptyChatsView extends StatelessWidget {
                   ? 'Попробуйте другой запрос'
                   : 'Начните переписку, нажав кнопку ниже',
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.darkSubtitle,
+              style: TextStyle(
+                color: context.subtitleColor,
                 fontSize: 15,
               ),
             ),
@@ -444,13 +467,13 @@ class _ChatSearchDelegate extends SearchDelegate<String?> {
   ThemeData appBarTheme(BuildContext context) {
     final base = Theme.of(context);
     return base.copyWith(
-      appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.darkAppBar,
+      appBarTheme: AppBarTheme(
+        backgroundColor: context.appBarBg,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
-      inputDecorationTheme: const InputDecorationTheme(
-        hintStyle: TextStyle(color: AppColors.darkSubtitle),
+      inputDecorationTheme: InputDecorationTheme(
+        hintStyle: TextStyle(color: context.subtitleColor),
         border: InputBorder.none,
       ),
     );
@@ -485,27 +508,27 @@ class _ChatSearchDelegate extends SearchDelegate<String?> {
     final chats = _ref.read(chatsListProvider).valueOrNull ?? [];
     final filtered = chats
         .where((c) =>
-            c.displayTitle(_userId).toLowerCase().contains(query.toLowerCase()))
+            c.displayTitle(_userId).toLowerCase().contains(query.toLowerCase()),)
         .toList();
     return ColoredBox(
-      color: AppColors.darkBg,
+      color: context.scaffoldBg,
       child: filtered.isEmpty
-          ? const Center(
+          ? Center(
               child: Text(
                 'Ничего не найдено',
-                style: TextStyle(color: AppColors.darkSubtitle),
+                style: TextStyle(color: context.subtitleColor),
               ),
             )
           : ListView.builder(
               itemCount: filtered.length,
               itemBuilder: (_, i) => ListTile(
-                leading: const CircleAvatar(
-                  backgroundColor: AppColors.darkTileHighlight,
-                  child: Icon(Icons.chat_bubble_outline, color: AppColors.teal),
+                leading: CircleAvatar(
+                  backgroundColor: context.tileHighlight,
+                  child: const Icon(Icons.chat_bubble_outline, color: AppColors.teal),
                 ),
                 title: Text(
                   filtered[i].displayTitle(_userId),
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: context.primaryText),
                 ),
                 onTap: () => close(context, filtered[i].displayTitle(_userId)),
               ),

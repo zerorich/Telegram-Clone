@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:telegramclone/core/constants.dart';
 import 'package:telegramclone/core/format_utils.dart';
 import 'package:telegramclone/core/theme.dart';
+import 'package:telegramclone/core/theme_extensions.dart';
 import 'package:telegramclone/data/models/chat.dart';
 import 'package:telegramclone/ui/widgets/avatar_widget.dart';
 
@@ -59,135 +60,138 @@ class _ChatTileState extends State<ChatTile>
             isGroup: isGroup,
           );
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 100),
-      color: _pressed ? AppColors.darkTileActive : Colors.transparent,
-      child: InkWell(
-        onTap: widget.onTap,
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        splashColor: AppColors.teal.withValues(alpha: 0.08),
-        highlightColor: Colors.transparent,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Avatar with mute indicator
-              Stack(
-                children: [
-                  AvatarWidget(
-                    imageUrl: avatarPath != null && avatarPath.isNotEmpty
-                        ? AppConstants.mediaUrl(avatarPath)
-                        : null,
-                    name: title,
-                    size: 54,
-                    isSaved: chat.isSaved,
-                  ),
-                  if (chat.isMuted)
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: 18,
-                        height: 18,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.darkBg,
-                        ),
-                        child: const Icon(
-                          Icons.notifications_off_rounded,
-                          size: 12,
-                          color: AppColors.darkSubtitle,
+    return Semantics(
+      label: 'Чат $title',
+      button: true,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 100),
+        color: _pressed ? context.tileActive : Colors.transparent,
+        child: InkWell(
+          onTap: widget.onTap,
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapUp: (_) => setState(() => _pressed = false),
+          onTapCancel: () => setState(() => _pressed = false),
+          splashColor: AppColors.teal.withValues(alpha: 0.08),
+          highlightColor: Colors.transparent,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Stack(
+                  children: [
+                    AvatarWidget(
+                      imageUrl: avatarPath != null && avatarPath.isNotEmpty
+                          ? AppConstants.mediaUrl(avatarPath)
+                          : null,
+                      name: title,
+                      size: 54,
+                      isSaved: chat.isSaved,
+                    ),
+                    if (chat.isMuted)
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          width: 18,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: context.scaffoldBg,
+                          ),
+                          child: Icon(
+                            Icons.notifications_off_rounded,
+                            size: 12,
+                            color: context.subtitleColor,
+                          ),
                         ),
                       ),
-                    ),
-                ],
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: hasUnread
-                                  ? FontWeight.w700
-                                  : FontWeight.w600,
-                              color: Colors.white,
+                  ],
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: hasUnread
+                                    ? FontWeight.w700
+                                    : FontWeight.w600,
+                                color: context.primaryText,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          timeStr,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            color: hasUnread
-                                ? AppColors.teal
-                                : AppColors.darkSubtitle,
-                            fontWeight: hasUnread
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        if (isMine && last != null && !chat.isSaved) ...[
-                          Icon(
-                            last.isRead
-                                ? Icons.done_all_rounded
-                                : Icons.done_rounded,
-                            size: 15,
-                            color: last.isRead
-                                ? AppColors.teal
-                                : AppColors.darkSubtitle,
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-                        Expanded(
-                          child: Text(
-                            preview,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          const SizedBox(width: 6),
+                          Text(
+                            timeStr,
                             style: TextStyle(
-                              fontSize: 14.5,
+                              fontSize: 12.5,
                               color: hasUnread
-                                  ? Colors.white.withValues(alpha: 0.75)
-                                  : AppColors.darkSubtitle,
+                                  ? AppColors.teal
+                                  : context.subtitleColor,
                               fontWeight: hasUnread
-                                  ? FontWeight.w500
+                                  ? FontWeight.w600
                                   : FontWeight.normal,
                             ),
                           ),
-                        ),
-                        if (hasUnread) ...[
-                          const SizedBox(width: 8),
-                          _UnreadBadge(
-                            count: chat.unreadCount,
-                            muted: chat.isMuted,
-                          ),
                         ],
-                      ],
-                    ),
-                  ],
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          if (isMine && last != null && !chat.isSaved) ...[
+                            Icon(
+                              last.isRead
+                                  ? Icons.done_all_rounded
+                                  : Icons.done_rounded,
+                              size: 15,
+                              color: last.isRead
+                                  ? AppColors.teal
+                                  : context.subtitleColor,
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          Expanded(
+                            child: Text(
+                              preview,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14.5,
+                                color: hasUnread
+                                    ? context.primaryText.withValues(alpha: 0.75)
+                                    : context.subtitleColor,
+                                fontWeight: hasUnread
+                                    ? FontWeight.w500
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                          if (hasUnread) ...[
+                            const SizedBox(width: 8),
+                            _UnreadBadge(
+                              count: chat.unreadCount,
+                              muted: chat.isMuted,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -209,9 +213,7 @@ class _UnreadBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       constraints: const BoxConstraints(minWidth: 22),
       decoration: BoxDecoration(
-        color: muted
-            ? AppColors.darkSubtitle.withValues(alpha: 0.4)
-            : AppColors.unreadBadge,
+        color: muted ? context.mutedBadgeFill : AppColors.unreadBadge,
         borderRadius: BorderRadius.circular(11),
       ),
       alignment: Alignment.center,

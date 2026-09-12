@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:telegramclone/core/theme.dart';
+import 'package:telegramclone/core/theme_extensions.dart';
 import 'package:telegramclone/data/models/message.dart';
 import 'package:telegramclone/ui/widgets/media_message.dart';
 import 'package:telegramclone/ui/widgets/voice_message_player.dart';
@@ -84,7 +85,7 @@ class _MessageBubbleState extends State<MessageBubble>
         spans.add(TextSpan(
           text: text.substring(start, m.start),
           style: TextStyle(color: color, fontSize: 15.5, height: 1.3),
-        ));
+        ),);
       }
       final url = m.group(0)!;
       final recognizer = TapGestureRecognizer()..onTap = () => _openUrl(url);
@@ -99,14 +100,14 @@ class _MessageBubbleState extends State<MessageBubble>
           decorationColor: AppColors.tealLight,
         ),
         recognizer: recognizer,
-      ));
+      ),);
       start = m.end;
     }
     if (start < text.length) {
       spans.add(TextSpan(
         text: text.substring(start),
         style: TextStyle(color: color, fontSize: 15.5, height: 1.3),
-      ));
+      ),);
     }
     return RichText(text: TextSpan(children: spans));
   }
@@ -148,11 +149,9 @@ class _MessageBubbleState extends State<MessageBubble>
     final senderName = widget.senderName;
     final replyTo = widget.replyTo;
 
-    // Updated colors: mine = dark Telegram blue, received = dark navy
-    final bg = isMine ? AppColors.darkBubbleMine : AppColors.darkBubbleReceived;
-    // Both use white text now (bubble is always dark)
-    const fg = Colors.white;
-    final timeColor = Colors.white.withValues(alpha: isMine ? 0.65 : 0.5);
+    final bg = isMine ? context.bubbleMine : context.bubbleReceived;
+    final fg = context.bubbleForeground(isMine: isMine);
+    final timeColor = fg.withValues(alpha: isMine ? 0.65 : 0.5);
 
     return FadeTransition(
       opacity: _fadeAnim,
@@ -273,7 +272,7 @@ class _MessageBubbleState extends State<MessageBubble>
                     if ([
                       MessageType.image,
                       MessageType.video,
-                      MessageType.file
+                      MessageType.file,
                     ].contains(message.type))
                       MediaMessage(message: message, isMine: isMine),
                     Align(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:telegramclone/core/constants.dart';
 import 'package:telegramclone/core/theme.dart';
+import 'package:telegramclone/core/theme_extensions.dart';
 import 'package:telegramclone/data/models/chat.dart';
 import 'package:telegramclone/providers/auth_provider.dart';
 import 'package:telegramclone/providers/chats_provider.dart';
@@ -13,7 +14,7 @@ Future<ChatModel?> showForwardPicker(BuildContext context) {
   return showModalBottomSheet<ChatModel>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: const Color(0xFF101010),
+    backgroundColor: context.tileHighlight,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
     ),
@@ -87,10 +88,10 @@ class _ForwardPickerState extends ConsumerState<_ForwardPicker> {
             autofocus: false,
             onChanged: (v) => setState(() => _query = v.trim()),
             style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search, color: AppColors.darkSubtitle),
+            decoration: InputDecoration(
+              prefixIcon: Icon(Icons.search, color: context.subtitleColor),
               hintText: 'Поиск',
-              border: OutlineInputBorder(borderSide: BorderSide.none),
+              border: const OutlineInputBorder(borderSide: BorderSide.none),
             ),
           ),
         ),
@@ -109,19 +110,19 @@ class _ForwardPickerState extends ConsumerState<_ForwardPicker> {
             data: (chats) {
               final filtered = _filter(chats, userId);
               if (filtered.isEmpty) {
-                return const Center(
+                return Center(
                   child: Text(
                     'Ничего не найдено',
-                    style: TextStyle(color: AppColors.darkSubtitle),
+                    style: TextStyle(color: context.subtitleColor),
                   ),
                 );
               }
               return ListView.separated(
                 itemCount: filtered.length,
-                separatorBuilder: (_, __) => const Divider(
+                separatorBuilder: (_, __) => Divider(
                   height: 1,
                   indent: 72,
-                  color: AppColors.darkDivider,
+                  color: context.dividerColor,
                 ),
                 itemBuilder: (_, i) {
                   final chat = filtered[i];
@@ -146,8 +147,8 @@ class _ForwardPickerState extends ConsumerState<_ForwardPicker> {
                     subtitle: chat.type == ChatType.group
                         ? Text(
                             '${chat.members.length} участников',
-                            style: const TextStyle(
-                              color: AppColors.darkSubtitle,
+                            style: TextStyle(
+                              color: context.subtitleColor,
                               fontSize: 13,
                             ),
                           )

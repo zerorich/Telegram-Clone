@@ -22,7 +22,7 @@ class UsersApi {
       'name': name,
       'surname': surname,
       'username': username,
-    });
+    },);
     return UserModel.fromJson(_parseData(res.data));
   }
 

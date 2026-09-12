@@ -150,13 +150,13 @@ class _MessageActionMenu extends StatelessWidget {
         icon: Icons.forward_outlined,
         label: 'Переслать',
         onTap: actions.onForward,
-      ));
+      ),);
       items.add(_item(
         context,
         icon: Icons.bookmark_border,
         label: 'Сохранить',
         onTap: actions.onSaveToFavorites,
-      ));
+      ),);
       items.add(_item(
         context,
         icon: message.isPinned
@@ -164,14 +164,14 @@ class _MessageActionMenu extends StatelessWidget {
             : Icons.push_pin_outlined,
         label: message.isPinned ? 'Открепить' : 'Закрепить',
         onTap: actions.onTogglePin,
-      ));
+      ),);
     } else {
       items.add(_item(
         context,
         icon: Icons.bookmark_border,
         label: 'Сохранить',
         onTap: actions.onSaveToFavorites,
-      ));
+      ),);
       items.add(_item(
         context,
         icon: message.isPinned
@@ -179,7 +179,7 @@ class _MessageActionMenu extends StatelessWidget {
             : Icons.push_pin_outlined,
         label: message.isPinned ? 'Открепить' : 'Закрепить',
         onTap: actions.onTogglePin,
-      ));
+      ),);
     }
 
     return Column(
@@ -279,7 +279,7 @@ class _MessageActionMenu extends StatelessWidget {
       icon: Icons.reply,
       tooltip: 'Ответить',
       onTap: actions.onReply,
-    ));
+    ),);
 
     if (canDelete) {
       iconButtons.add(_iconBtn(
@@ -287,7 +287,7 @@ class _MessageActionMenu extends StatelessWidget {
         icon: Icons.delete_outline,
         tooltip: 'Удалить',
         onTap: actions.onDelete,
-      ));
+      ),);
     }
 
     iconButtons.add(_iconBtn(
@@ -295,7 +295,7 @@ class _MessageActionMenu extends StatelessWidget {
       icon: Icons.copy_outlined,
       tooltip: 'Копировать',
       onTap: actions.onCopy,
-    ));
+    ),);
 
     if (isMine && canEdit) {
       iconButtons.add(_iconBtn(
@@ -303,14 +303,14 @@ class _MessageActionMenu extends StatelessWidget {
         icon: Icons.edit_outlined,
         tooltip: 'Изменить',
         onTap: actions.onEdit,
-      ));
+      ),);
     } else {
       iconButtons.add(_iconBtn(
         context,
         icon: Icons.forward_outlined,
         tooltip: 'Переслать',
         onTap: actions.onForward,
-      ));
+      ),);
     }
 
     return Padding(

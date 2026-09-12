@@ -12,12 +12,18 @@ class MessagesState {
   final String? nextCursor;
   final bool isLoadingMore;
   final bool hasMore;
+  final bool isInitialLoading;
+  final Object? loadError;
+  final Object? sendError;
 
   const MessagesState({
     this.messages = const [],
     this.nextCursor,
     this.isLoadingMore = false,
     this.hasMore = true,
+    this.isInitialLoading = false,
+    this.loadError,
+    this.sendError,
   });
 
   MessagesState copyWith({
@@ -25,13 +31,21 @@ class MessagesState {
     String? nextCursor,
     bool? isLoadingMore,
     bool? hasMore,
+    bool? isInitialLoading,
+    Object? loadError,
+    Object? sendError,
     bool clearNextCursor = false,
+    bool clearLoadError = false,
+    bool clearSendError = false,
   }) {
     return MessagesState(
       messages: messages ?? this.messages,
       nextCursor: clearNextCursor ? null : (nextCursor ?? this.nextCursor),
       isLoadingMore: isLoadingMore ?? this.isLoadingMore,
       hasMore: hasMore ?? this.hasMore,
+      isInitialLoading: isInitialLoading ?? this.isInitialLoading,
+      loadError: clearLoadError ? null : (loadError ?? this.loadError),
+      sendError: clearSendError ? null : (sendError ?? this.sendError),
     );
   }
 }
@@ -48,9 +62,17 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
   }
 
   Future<void> loadInitial() async {
+    state = state.copyWith(
+      isInitialLoading: true,
+      clearLoadError: true,
+    );
     final cached = await _repo.getCached(chatId);
     if (cached.isNotEmpty) {
-      state = MessagesState(messages: _sort(cached), hasMore: true);
+      state = MessagesState(
+        messages: _sort(cached),
+        hasMore: true,
+        isInitialLoading: true,
+      );
     }
     try {
       final page = await _repo.fetchMessages(chatId);
@@ -60,13 +82,18 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
         nextCursor: page.nextCursor,
         hasMore: page.nextCursor != null && page.nextCursor!.isNotEmpty,
       );
-      _repo.cacheMessages(chatId, merged);
-    } catch (_) {}
+      await _repo.cacheMessages(chatId, merged);
+    } catch (e) {
+      state = state.copyWith(
+        isInitialLoading: false,
+        loadError: e,
+      );
+    }
   }
 
   Future<void> loadMore() async {
     if (state.isLoadingMore || !state.hasMore) return;
-    state = state.copyWith(isLoadingMore: true);
+    state = state.copyWith(isLoadingMore: true, clearLoadError: true);
     try {
       final page = await _repo.fetchMessages(chatId, cursor: state.nextCursor);
       final merged = _merge(state.messages, page.messages);
@@ -77,8 +104,8 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
         isLoadingMore: false,
       );
       await _repo.cacheMessages(chatId, merged);
-    } catch (_) {
-      state = state.copyWith(isLoadingMore: false);
+    } catch (e) {
+      state = state.copyWith(isLoadingMore: false, loadError: e);
     }
   }
 
@@ -95,22 +122,25 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
     return sorted;
   }
 
-  Future<MessageModel?> sendText(String content, {String? replyToId}) async {
+  Future<MessageModel> sendText(String content, {String? replyToId}) async {
+    state = state.copyWith(clearSendError: true);
     try {
       final msg = await _repo.sendText(chatId, content: content, replyToId: replyToId);
       _addMessage(msg);
       return msg;
-    } catch (_) {
-      return null;
+    } catch (e) {
+      state = state.copyWith(sendError: e);
+      rethrow;
     }
   }
 
-  Future<MessageModel?> sendMedia({
+  Future<MessageModel> sendMedia({
     required String type,
     required String path,
     int? durationSec,
     String? replyToId,
   }) async {
+    state = state.copyWith(clearSendError: true);
     try {
       final msg = await _repo.sendMedia(
         chatId,
@@ -121,8 +151,9 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
       );
       _addMessage(msg);
       return msg;
-    } catch (_) {
-      return null;
+    } catch (e) {
+      state = state.copyWith(sendError: e);
+      rethrow;
     }
   }
 
@@ -130,26 +161,8 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
     if (state.messages.any((m) => m.id == msg.id)) return;
     state = state.copyWith(messages: _sort([...state.messages, msg]));
     _repo.cacheMessages(chatId, state.messages);
-    _ref.read(chatsListProvider.notifier).onNewMessage(_msgToJson(msg));
+    _ref.read(chatsListProvider.notifier).onNewMessage(msg.toJson());
   }
-
-  Map<String, dynamic> _msgToJson(MessageModel msg) => {
-        'id': msg.id,
-        'chat_id': msg.chatId,
-        'sender_id': msg.senderId,
-        'type': messageTypeToString(msg.type),
-        'content': msg.content,
-        'media_url': msg.mediaUrl,
-        'duration_sec': msg.durationSec,
-        'reply_to_id': msg.replyToId,
-        'is_edited': msg.isEdited,
-        'is_deleted': msg.isDeleted,
-        'is_pinned': msg.isPinned,
-        if (msg.pinnedAt != null) 'pinned_at': msg.pinnedAt!.toIso8601String(),
-        'forwarded_from_user_id': msg.forwardedFromUserId,
-        'forwarded_from_chat_id': msg.forwardedFromChatId,
-        'created_at': msg.createdAt.toIso8601String(),
-      };
 
   void onNewMessage(Map<String, dynamic> data) {
     final msg = MessageModel.fromJson(data);
@@ -209,7 +222,8 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
       final msg = await _repo.editText(chatId, messageId, content: content);
       _applyMessagePatch(msg);
       return true;
-    } catch (_) {
+    } catch (e) {
+      state = state.copyWith(sendError: e);
       return false;
     }
   }
@@ -219,7 +233,8 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
       final msg = await _repo.deleteMessage(chatId, messageId);
       _applyMessagePatch(msg);
       return true;
-    } catch (_) {
+    } catch (e) {
+      state = state.copyWith(sendError: e);
       return false;
     }
   }
@@ -234,22 +249,20 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
         sourceChatId: chatId,
         messageId: messageId,
       );
-      // If the target chat is currently loaded, surface the new message.
       if (_ref.exists(messagesProvider(targetChatId))) {
         _ref
             .read(messagesProvider(targetChatId).notifier)
             ._addMessage(msg);
       } else {
-        // Otherwise let the chats list refresh its last-message preview.
-        _ref.read(chatsListProvider.notifier).onNewMessage(_msgToJson(msg));
+        _ref.read(chatsListProvider.notifier).onNewMessage(msg.toJson());
       }
       return msg;
-    } catch (_) {
+    } catch (e) {
+      state = state.copyWith(sendError: e);
       return null;
     }
   }
 
-  /// Toggles pin on the given message. Returns true on success.
   Future<bool> togglePin(MessageModel msg) async {
     try {
       final updated = msg.isPinned
@@ -258,7 +271,8 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
       _applyMessagePatch(updated);
       _ref.read(pinnedMessagesProvider(chatId).notifier).upsert(updated);
       return true;
-    } catch (_) {
+    } catch (e) {
+      state = state.copyWith(sendError: e);
       return false;
     }
   }
@@ -269,7 +283,8 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
       onChatCleared();
       _ref.read(chatsListProvider.notifier).onChatCleared(chatId);
       return true;
-    } catch (_) {
+    } catch (e) {
+      state = state.copyWith(loadError: e);
       return false;
     }
   }
@@ -279,8 +294,9 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
     if (q.isEmpty) return const [];
     try {
       return await _repo.search(chatId, query: q);
-    } catch (_) {
-      return const [];
+    } catch (e) {
+      state = state.copyWith(loadError: e);
+      rethrow;
     }
   }
 
@@ -317,7 +333,6 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
         );
   }
 
-  /// Notifies server that messages from others up to [latest] were read.
   void markReadUpTo(String currentUserId) {
     if (currentUserId.isEmpty) return;
     if (_ref.read(activeChatIdProvider) != chatId) return;
@@ -336,12 +351,11 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
     _ref.read(wsServiceProvider).sendRead(chatId, latest.id);
   }
 
-  /// Pages through history until either the message is found or we exhaust
-  /// the cursor / hit the iteration limit. Used by "В начало".
   Future<void> loadAllHistory({int maxBatches = 10}) async {
     var batches = 0;
     while (state.hasMore && batches < maxBatches) {
       await loadMore();
+      if (state.loadError != null) break;
       batches += 1;
     }
   }
@@ -363,13 +377,15 @@ class PinnedMessagesNotifier extends StateNotifier<List<MessageModel>> {
 
   final MessageRepository _repo;
   final String chatId;
+  Object? lastError;
 
   Future<void> _load() async {
     try {
       final list = await _repo.getPinned(chatId);
+      lastError = null;
       state = list;
-    } catch (_) {
-      // Server may not expose pinned endpoint yet — degrade silently.
+    } catch (e) {
+      lastError = e;
       state = const [];
     }
   }

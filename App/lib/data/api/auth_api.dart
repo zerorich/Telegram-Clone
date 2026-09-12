@@ -32,7 +32,7 @@ class AuthApi {
     final res = await _dio.post('/api/auth/verify-code', data: {
       'email': email,
       'code': code,
-    });
+    },);
     final data = _parseData(res.data);
     final isNewUser = data['is_new_user'] as bool? ?? false;
     if (isNewUser) {
@@ -65,7 +65,7 @@ class AuthApi {
       },
       options: Options(headers: {
         'Authorization': 'Bearer $registrationToken',
-      }),
+      },),
     );
     final data = _parseData(res.data);
     return (
@@ -77,7 +77,7 @@ class AuthApi {
   Future<TokenPair> refresh(String refreshToken) async {
     final res = await _dio.post('/api/auth/refresh', data: {
       'refresh_token': refreshToken,
-    });
+    },);
     final data = _parseData(res.data);
     return TokenPair.fromJson(data);
   }
@@ -85,7 +85,7 @@ class AuthApi {
   Future<void> logout(String refreshToken) async {
     await _dio.post('/api/auth/logout', data: {
       'refresh_token': refreshToken,
-    });
+    },);
   }
 
   Map<String, dynamic> _parseData(dynamic json) {

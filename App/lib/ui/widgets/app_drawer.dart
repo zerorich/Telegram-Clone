@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:telegramclone/core/theme.dart';
+import 'package:telegramclone/core/theme_extensions.dart';
 import 'package:telegramclone/data/models/user.dart';
 import 'package:telegramclone/providers/auth_provider.dart';
 import 'package:telegramclone/providers/theme_provider.dart';
@@ -88,7 +89,7 @@ class _AppDrawerState extends ConsumerState<AppDrawer>
 
     return Drawer(
       width: MediaQuery.sizeOf(context).width * 0.84,
-      backgroundColor: AppColors.darkDrawer,
+      backgroundColor: context.drawerBg,
       child: Column(
         children: [
           // ── Header ───────────────────────────────────────────
@@ -121,12 +122,16 @@ class _AppDrawerState extends ConsumerState<AppDrawer>
                       child: child,
                     ),
                   ),
-                  child: _DrawerItem(
-                    data: item,
-                    onTap: () {
-                      Navigator.pop(context);
-                      context.push(item.route);
-                    },
+                  child: Semantics(
+                    label: item.label,
+                    button: true,
+                    child: _DrawerItem(
+                      data: item,
+                      onTap: () {
+                        Navigator.pop(context);
+                        context.push(item.route);
+                      },
+                    ),
                   ),
                 );
               },
@@ -134,7 +139,7 @@ class _AppDrawerState extends ConsumerState<AppDrawer>
           ),
 
           // ── Divider ──────────────────────────────────────────
-          const Divider(height: 1, color: AppColors.darkDivider),
+          Divider(height: 1, color: context.dividerColor),
 
           // ── Bottom: logout ────────────────────────────────────
           Padding(
@@ -144,7 +149,10 @@ class _AppDrawerState extends ConsumerState<AppDrawer>
               top: 4,
               bottom: MediaQuery.paddingOf(context).bottom + 8,
             ),
-            child: ListTile(
+            child: Semantics(
+              label: 'Выйти из аккаунта',
+              button: true,
+              child: ListTile(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -170,6 +178,7 @@ class _AppDrawerState extends ConsumerState<AppDrawer>
                 await ref.read(authProvider.notifier).logout();
                 if (context.mounted) context.go('/auth/login');
               },
+            ),
             ),
           ),
         ],
@@ -346,8 +355,8 @@ class _DrawerItem extends StatelessWidget {
         ),
         title: Text(
           data.label,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: context.primaryText,
             fontSize: 15.5,
             fontWeight: FontWeight.w500,
           ),

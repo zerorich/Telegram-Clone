@@ -25,6 +25,8 @@ ehthumbs.db
 *.key
 credentials.json
 secrets.json
+google-services.json
+GoogleService-Info.plist
 
 # --- Go (server) ---
 server/bin/

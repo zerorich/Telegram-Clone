@@ -7,6 +7,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:telegramclone/core/constants.dart';
 import 'package:telegramclone/core/di.dart';
 import 'package:telegramclone/core/theme.dart';
+import 'package:telegramclone/core/theme_extensions.dart';
+import 'package:telegramclone/data/models/user.dart';
 import 'package:telegramclone/providers/auth_provider.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -99,10 +101,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.darkTileHighlight,
+        backgroundColor: context.tileHighlight,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Text('Выйти из аккаунта',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),),
         content: const Text(
           'Вы уверены, что хотите выйти?',
           style: TextStyle(color: Colors.white70, height: 1.4),
@@ -110,14 +112,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Отмена',
-                style: TextStyle(color: AppColors.darkSubtitle)),
+            child: Text('Отмена',
+                style: TextStyle(color: ctx.subtitleColor),),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: Colors.redAccent,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
+                  borderRadius: BorderRadius.circular(10),),
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Выйти'),
@@ -134,9 +136,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider).user;
     if (user == null) {
-      return const Scaffold(
-        backgroundColor: AppColors.darkBg,
-        body: Center(
+      return Scaffold(
+        backgroundColor: context.scaffoldBg,
+        body: const Center(
           child: CircularProgressIndicator(color: AppColors.teal),
         ),
       );
@@ -147,7 +149,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         : null;
 
     return Scaffold(
-      backgroundColor: AppColors.darkBg,
+      backgroundColor: context.scaffoldBg,
       body: FadeTransition(
         opacity: _fadeAnim,
         child: CustomScrollView(
@@ -156,7 +158,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             SliverAppBar(
               expandedHeight: 260,
               pinned: true,
-              backgroundColor: AppColors.darkAppBar,
+              backgroundColor: context.appBarBg,
               leading: IconButton(
                 icon: const Icon(
                   Icons.arrow_back_ios_new_rounded,
@@ -305,7 +307,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                                   shadows: [
                                     Shadow(
                                         blurRadius: 8,
-                                        color: Colors.black54),
+                                        color: Colors.black54,),
                                   ],
                                 ),
                               ),
@@ -352,12 +354,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: AppColors.darkTileHighlight,
+                    color: context.tileHighlight,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: ListTile(
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16)),
+                        borderRadius: BorderRadius.circular(16),),
                     leading: Container(
                       width: 40,
                       height: 40,
@@ -366,7 +368,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                         color: Colors.red.withValues(alpha: 0.12),
                       ),
                       child: const Icon(Icons.logout_rounded,
-                          color: Colors.redAccent, size: 20),
+                          color: Colors.redAccent, size: 20,),
                     ),
                     title: const Text(
                       'Выйти из аккаунта',
@@ -375,7 +377,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     ),
                     onTap: _confirmLogout,
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 4),
+                        horizontal: 14, vertical: 4,),
                   ),
                 ),
               ),
@@ -402,7 +404,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 // ── Info view ─────────────────────────────────────────────────────────────────
 
 class _ProfileInfo extends StatelessWidget {
-  final dynamic user;
+  final UserModel user;
 
   const _ProfileInfo({required this.user});
 
@@ -413,11 +415,11 @@ class _ProfileInfo extends StatelessWidget {
       if (user.username != null && user.username!.isNotEmpty)
         _Row(
           icon: Icons.alternate_email_rounded,
-          label: 'Username',
+          label: 'Имя пользователя',
           value: '@${user.username}',
           canCopy: true,
         ),
-      if (user.phone != null && user.phone!.isNotEmpty)
+      if (user.phone.isNotEmpty)
         _Row(
           icon: Icons.phone_rounded,
           label: 'Телефон',
@@ -426,7 +428,7 @@ class _ProfileInfo extends StatelessWidget {
         ),
       _Row(
         icon: Icons.email_rounded,
-        label: 'Email',
+        label: 'Эл. почта',
         value: user.email,
         canCopy: true,
       ),
@@ -434,7 +436,7 @@ class _ProfileInfo extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.darkTileHighlight,
+        color: context.tileHighlight,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -442,10 +444,10 @@ class _ProfileInfo extends StatelessWidget {
           for (int i = 0; i < rows.length; i++) ...[
             _InfoTile(row: rows[i]),
             if (i < rows.length - 1)
-              const Divider(
+              Divider(
                   height: 1,
                   indent: 56,
-                  color: AppColors.darkDivider),
+                  color: context.dividerColor,),
           ],
         ],
       ),
@@ -474,31 +476,38 @@ class _InfoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    return Semantics(
+      label: '${row.label}: ${row.value}',
+      child: ListTile(
       leading: Icon(row.icon, color: AppColors.teal, size: 22),
       title: Text(
         row.value,
-        style: const TextStyle(color: Colors.white, fontSize: 15.5),
+        style: TextStyle(color: context.primaryText, fontSize: 15.5),
       ),
       subtitle: Text(
         row.label,
-        style: const TextStyle(
-            color: AppColors.darkSubtitle, fontSize: 12.5),
+        style: TextStyle(
+            color: context.subtitleColor, fontSize: 12.5,),
       ),
       trailing: row.canCopy
-          ? IconButton(
-              icon: const Icon(Icons.copy_rounded,
-                  size: 18, color: AppColors.darkSubtitle),
+          ? Semantics(
+              label: 'Скопировать ${row.label}',
+              button: true,
+              child: IconButton(
+              icon: Icon(Icons.copy_rounded,
+                  size: 18, color: context.subtitleColor,),
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: row.value));
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Скопировано')),
                 );
               },
+            ),
             )
           : null,
       contentPadding:
           const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+    ),
     );
   }
 }
@@ -526,28 +535,28 @@ class _EditForm extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.darkTileHighlight,
+        color: context.tileHighlight,
         borderRadius: BorderRadius.circular(16),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _field(nameCtrl, 'Имя *', Icons.person_rounded),
+          _field(context, nameCtrl, 'Имя *', Icons.person_rounded),
           const SizedBox(height: 12),
-          _field(surnameCtrl, 'Фамилия', Icons.badge_rounded),
+          _field(context, surnameCtrl, 'Фамилия', Icons.badge_rounded),
           const SizedBox(height: 12),
-          _field(usernameCtrl, 'Username', Icons.alternate_email_rounded),
+          _field(context, usernameCtrl, 'Имя пользователя', Icons.alternate_email_rounded),
           const SizedBox(height: 20),
           Row(
             children: [
               Expanded(
                 child: OutlinedButton(
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.darkSubtitle,
-                    side: const BorderSide(color: AppColors.darkDivider),
+                    foregroundColor: context.subtitleColor,
+                    side: BorderSide(color: context.dividerColor),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(12),),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                   onPressed: loading ? null : onCancel,
@@ -560,7 +569,7 @@ class _EditForm extends StatelessWidget {
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.teal,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(12),),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                   onPressed: loading ? null : onSave,
@@ -583,17 +592,25 @@ class _EditForm extends StatelessWidget {
     );
   }
 
-  Widget _field(TextEditingController ctrl, String label, IconData icon) {
-    return TextField(
+  Widget _field(
+    BuildContext context,
+    TextEditingController ctrl,
+    String label,
+    IconData icon,
+  ) {
+    return Semantics(
+      label: label,
+      textField: true,
+      child: TextField(
       controller: ctrl,
       textCapitalization: TextCapitalization.words,
-      style: const TextStyle(color: Colors.white, fontSize: 15.5),
+      style: TextStyle(color: context.primaryText, fontSize: 15.5),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: AppColors.darkSubtitle),
-        prefixIcon: Icon(icon, color: AppColors.darkSubtitle, size: 20),
+        labelStyle: TextStyle(color: context.subtitleColor),
+        prefixIcon: Icon(icon, color: context.subtitleColor, size: 20),
         filled: true,
-        fillColor: AppColors.darkInput,
+        fillColor: context.inputFill,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -605,6 +622,7 @@ class _EditForm extends StatelessWidget {
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
+    ),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:telegramclone/core/di.dart';
+import 'package:telegramclone/core/theme_extensions.dart';
 import 'package:telegramclone/data/models/chat_member.dart';
 import 'package:telegramclone/providers/auth_provider.dart';
 import 'package:telegramclone/providers/chats_provider.dart';
@@ -24,7 +25,11 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     final userId = ref.watch(authProvider).user?.id ?? '';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Group info')),
+      backgroundColor: context.scaffoldBg,
+      appBar: AppBar(
+        title: const Text('Информация о группе'),
+        backgroundColor: context.appBarBg,
+      ),
       body: detail.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('$e')),
@@ -45,19 +50,21 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                   onTap: isAdmin ? () => _changeAvatar() : null,
                   child: AvatarWidget(
                     imageUrl: chat.fullAvatarUrl,
-                    name: chat.name ?? 'Group',
+                    name: chat.name ?? 'Группа',
                     size: 96,
                   ),
                 ),
               ),
               const SizedBox(height: 16),
               ListTile(
-                title: Text(chat.name ?? 'Group'),
+                title: Text(chat.name ?? 'Группа'),
                 trailing: isAdmin ? const Icon(Icons.edit) : null,
                 onTap: isAdmin ? () => _editName(chat.name ?? '') : null,
               ),
               const Divider(),
-              const ListTile(title: Text('Members', style: TextStyle(fontWeight: FontWeight.bold))),
+              const ListTile(
+                title: Text('Участники', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
               ...d.members.map((m) => ListTile(
                     leading: AvatarWidget(
                       imageUrl: m.user?.fullAvatarUrl,
@@ -65,17 +72,17 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                       size: 40,
                     ),
                     title: Text(m.user?.displayName ?? m.userId),
-                    subtitle: Text(memberRoleToString(m.role)),
-                  )),
+                    subtitle: Text(_roleLabel(m.role)),
+                  ),),
               if (isAdmin)
                 ListTile(
                   leading: const Icon(Icons.person_add),
-                  title: const Text('Add members'),
+                  title: const Text('Добавить участников'),
                   onTap: () => context.push('/new-chat'),
                 ),
               ListTile(
                 leading: const Icon(Icons.exit_to_app, color: Colors.red),
-                title: const Text('Leave group', style: TextStyle(color: Colors.red)),
+                title: const Text('Покинуть группу', style: TextStyle(color: Colors.red)),
                 onTap: () => _leave(),
               ),
             ],
@@ -83,6 +90,17 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
         },
       ),
     );
+  }
+
+  String _roleLabel(MemberRole role) {
+    switch (role) {
+      case MemberRole.owner:
+        return 'Владелец';
+      case MemberRole.admin:
+        return 'Администратор';
+      case MemberRole.member:
+        return 'Участник';
+    }
   }
 
   Future<void> _changeAvatar() async {
@@ -100,13 +118,13 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Edit group name'),
+        title: const Text('Изменить название'),
         content: TextField(controller: ctrl),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            child: const Text('Save'),
+            child: const Text('Сохранить'),
           ),
         ],
       ),

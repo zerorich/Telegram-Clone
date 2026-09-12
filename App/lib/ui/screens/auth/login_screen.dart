@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:telegramclone/core/error_utils.dart';
 import 'package:telegramclone/core/theme.dart';
+import 'package:telegramclone/core/theme_extensions.dart';
 import 'package:telegramclone/providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -86,7 +87,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     final formGap = compact ? 24.0 : 44.0;
 
     return Scaffold(
-      backgroundColor: AppColors.darkBg,
+      backgroundColor: context.scaffoldBg,
       // Let the Scaffold resize body when keyboard appears so
       // SingleChildScrollView can scroll it all into view.
       resizeToAvoidBottomInset: true,
@@ -141,18 +142,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                         'Telegram',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: Colors.white,
+                          color: context.primaryText,
                           fontSize: titleFontSize,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.3,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         'Введите email — мы отправим\nкод для входа',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: AppColors.darkSubtitle,
+                          color: context.subtitleColor,
                           fontSize: 15,
                           height: 1.4,
                         ),
@@ -178,33 +179,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                         keyboardType: TextInputType.emailAddress,
                         autocorrect: false,
                         textInputAction: TextInputAction.done,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: context.primaryText,
                           fontSize: 16,
                         ),
                         decoration: InputDecoration(
                           labelText: 'Email',
-                          labelStyle: const TextStyle(
-                            color: AppColors.darkSubtitle,
-                          ),
-                          prefixIcon: const Icon(
+                          labelStyle: TextStyle(color: context.subtitleColor),
+                          prefixIcon: Icon(
                             Icons.mail_outline_rounded,
-                            color: AppColors.darkSubtitle,
+                            color: context.subtitleColor,
                           ),
                           filled: true,
-                          fillColor: AppColors.darkTileHighlight,
+                          fillColor: context.tileHighlight,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
                             borderSide: BorderSide(
-                              color: AppColors.darkSubtitle
-                                  .withValues(alpha: 0.15),
+                              color: context.subtitleColor.withValues(alpha: 0.15),
                             ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
                             borderSide: BorderSide(
-                              color: AppColors.darkSubtitle
-                                  .withValues(alpha: 0.15),
+                              color: context.subtitleColor.withValues(alpha: 0.15),
                             ),
                           ),
                           focusedBorder: OutlineInputBorder(

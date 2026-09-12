@@ -156,7 +156,7 @@ class ChatRepository {
   Future<ChatDetail> getChat(String chatId) => _api.getChat(chatId);
 
   Future<ChatModel> updateGroup(String chatId,
-          {String? name, String? avatarPath}) =>
+          {String? name, String? avatarPath,}) =>
       _api.updateGroup(chatId, name: name, avatarPath: avatarPath);
 
   Future<void> addMembers(String chatId, List<String> memberIds) =>

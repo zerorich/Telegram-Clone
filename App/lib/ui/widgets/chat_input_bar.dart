@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:telegramclone/core/theme.dart';
+import 'package:telegramclone/core/theme_extensions.dart';
 
 class ChatInputBar extends StatelessWidget {
   const ChatInputBar({
@@ -28,7 +29,7 @@ class ChatInputBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.darkAppBar,
+      color: context.appBarBg,
       padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
       child: SafeArea(
         top: false,
@@ -40,10 +41,10 @@ class ChatInputBar extends StatelessWidget {
               child: Container(
                 constraints: const BoxConstraints(minHeight: 44),
                 decoration: BoxDecoration(
-                  color: AppColors.darkInput,
+                  color: context.inputFill,
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                    color: AppColors.darkSubtitle.withValues(alpha: 0.12),
+                    color: context.subtitleColor.withValues(alpha: 0.12),
                     width: 1,
                   ),
                 ),
@@ -53,7 +54,7 @@ class ChatInputBar extends StatelessWidget {
                     _IconBtn(
                       icon: Icons.emoji_emotions_outlined,
                       onPressed: () {},
-                      color: AppColors.darkSubtitle,
+                      color: context.subtitleColor,
                     ),
                     Expanded(
                       child: TextField(
@@ -61,21 +62,21 @@ class ChatInputBar extends StatelessWidget {
                         maxLines: 5,
                         minLines: 1,
                         onChanged: onChanged,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: context.primaryText,
                           fontSize: 15.5,
                         ),
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           hintText: 'Сообщение',
                           hintStyle: TextStyle(
-                            color: AppColors.darkSubtitle,
+                            color: context.subtitleColor,
                             fontSize: 15.5,
                           ),
                           border: InputBorder.none,
                           enabledBorder: InputBorder.none,
                           focusedBorder: InputBorder.none,
                           contentPadding:
-                              EdgeInsets.symmetric(vertical: 10),
+                              const EdgeInsets.symmetric(vertical: 10),
                           isDense: true,
                         ),
                       ),
@@ -83,7 +84,7 @@ class ChatInputBar extends StatelessWidget {
                     _IconBtn(
                       icon: Icons.attach_file_rounded,
                       onPressed: onAttach,
-                      color: AppColors.darkSubtitle,
+                      color: context.subtitleColor,
                     ),
                   ],
                 ),
@@ -183,7 +184,10 @@ class _SendButtonState extends State<_SendButton>
   Widget build(BuildContext context) {
     return ScaleTransition(
       scale: _scale,
-      child: GestureDetector(
+      child: Semantics(
+        label: 'Отправить сообщение',
+        button: true,
+        child: GestureDetector(
         onTap: _onTap,
         child: Container(
           width: 44,
@@ -202,6 +206,7 @@ class _SendButtonState extends State<_SendButton>
             size: 20,
           ),
         ),
+      ),
       ),
     );
   }
@@ -245,7 +250,7 @@ class _MicButton extends StatelessWidget {
             child: Icon(
               isRecording ? Icons.mic_rounded : Icons.mic_none_rounded,
               key: ValueKey(isRecording),
-              color: isRecording ? Colors.redAccent : AppColors.darkSubtitle,
+              color: isRecording ? Colors.redAccent : context.subtitleColor,
               size: 26,
             ),
           ),

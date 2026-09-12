@@ -110,7 +110,7 @@ class _NewGroupScreenState extends ConsumerState<NewGroupScreen> {
                       label: Text(u.displayName),
                       onDeleted: () =>
                           setState(() => _selected.removeWhere((x) => x.id == u.id)),
-                    ))
+                    ),)
                 .toList(),
           ),
           ..._searchResults.map((u) => ListTile(
@@ -128,7 +128,7 @@ class _NewGroupScreenState extends ConsumerState<NewGroupScreen> {
                     }
                   });
                 },
-              )),
+              ),),
           const SizedBox(height: 24),
           FilledButton(
             onPressed: _loading ? null : _create,

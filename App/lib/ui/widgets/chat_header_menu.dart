@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:telegramclone/core/theme.dart';
 
 /// Result of [showChatHeaderMenu]. The caller decides what to do for each
 /// action.
@@ -137,7 +136,7 @@ class _HeaderMenuPanelState extends State<_HeaderMenuPanel> {
               : Icons.notifications_outlined,
           label: 'Уведомления',
           trailing: const Icon(Icons.chevron_right,
-              color: Colors.white54, size: 20),
+              color: Colors.white54, size: 20,),
           onTap: () => setState(() => _showNotifSubmenu = true),
         ),
         if (!widget.isSaved)
@@ -262,23 +261,3 @@ class _HeaderMenuPanelState extends State<_HeaderMenuPanel> {
   }
 }
 
-/// Centralised "В разработке" placeholder dialog.
-Future<void> showComingSoonDialog(BuildContext context) {
-  return showDialog<void>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      backgroundColor: AppColors.darkTileHighlight,
-      title: const Text('Скоро', style: TextStyle(color: Colors.white)),
-      content: const Text(
-        'Эта функция в разработке',
-        style: TextStyle(color: Colors.white70),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(),
-          child: const Text('OK'),
-        ),
-      ],
-    ),
-  );
-}

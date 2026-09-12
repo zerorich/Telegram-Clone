@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:telegramclone/core/constants.dart';
 import 'package:telegramclone/data/api/auth_api.dart';
 import 'package:telegramclone/data/api/chats_api.dart';
+import 'package:telegramclone/data/api/devices_api.dart';
 import 'package:telegramclone/data/api/dio_client.dart';
 import 'package:telegramclone/data/api/messages_api.dart';
 import 'package:telegramclone/data/api/users_api.dart';
@@ -24,7 +25,7 @@ final _bareAuthDioProvider = Provider<Dio>((ref) {
     connectTimeout: const Duration(seconds: 15),
     receiveTimeout: const Duration(seconds: 30),
     headers: {'Content-Type': 'application/json'},
-  ));
+  ),);
 });
 
 final authApiProvider =
@@ -40,6 +41,8 @@ final dioClientProvider = Provider<DioClient>((ref) {
 final dioProvider = Provider<Dio>((ref) => ref.watch(dioClientProvider).dio);
 
 final usersApiProvider = Provider<UsersApi>((ref) => UsersApi(ref.watch(dioProvider)));
+final devicesApiProvider =
+    Provider<DevicesApi>((ref) => DevicesApi(ref.watch(dioProvider)));
 final chatsApiProvider = Provider<ChatsApi>((ref) => ChatsApi(ref.watch(dioProvider)));
 final messagesApiProvider =
     Provider<MessagesApi>((ref) => MessagesApi(ref.watch(dioProvider)));
@@ -55,7 +58,7 @@ final chatRepositoryProvider =
     Provider<ChatRepository>((ref) => ChatRepository(ref.watch(chatsApiProvider)));
 
 final messageRepositoryProvider = Provider<MessageRepository>(
-    (ref) => MessageRepository(ref.watch(messagesApiProvider)));
+    (ref) => MessageRepository(ref.watch(messagesApiProvider)),);
 
 final wsClientProvider = Provider<WsClient>((ref) {
   final client = WsClient();

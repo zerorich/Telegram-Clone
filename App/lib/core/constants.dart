@@ -1,18 +1,44 @@
-// Build-time overrides:
+import 'package:flutter/foundation.dart';
+
+// Build-time overrides (required for release):
 //   flutter run --dart-define=API_BASE_URL=https://example.com \
 //               --dart-define=WS_URL=wss://example.com/ws
-// Defaults target Android emulator (10.0.2.2 = host loopback).
+// Debug builds default to Android emulator host (10.0.2.2 = host loopback).
 class AppConstants {
-  static const String baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    // defaultValue: 'http://10.0.2.2:8080',
-    defaultValue: 'https://western-canal-cheap-glance.trycloudflare.com',
-  );
-  static const String wsUrl = String.fromEnvironment(
-    'WS_URL',
-    // defaultValue: 'ws://10.0.2.2:8080/ws',
-    defaultValue: 'wss://western-canal-cheap-glance.trycloudflare.com/ws',
-  );
+  static const String _apiFromEnv = String.fromEnvironment('API_BASE_URL');
+  static const String _wsFromEnv = String.fromEnvironment('WS_URL');
+
+  static const String _debugBaseUrl = 'http://10.0.2.2:8080';
+  static const String _debugWsUrl = 'ws://10.0.2.2:8080/ws';
+
+  static String get baseUrl {
+    if (_apiFromEnv.isNotEmpty) return _apiFromEnv;
+    assert(
+      !kReleaseMode,
+      'Pass --dart-define=API_BASE_URL=... for release builds',
+    );
+    if (kReleaseMode) {
+      throw StateError(
+        'API_BASE_URL is required in release. '
+        'Pass --dart-define=API_BASE_URL=...',
+      );
+    }
+    return _debugBaseUrl;
+  }
+
+  static String get wsUrl {
+    if (_wsFromEnv.isNotEmpty) return _wsFromEnv;
+    assert(
+      !kReleaseMode,
+      'Pass --dart-define=WS_URL=... for release builds',
+    );
+    if (kReleaseMode) {
+      throw StateError(
+        'WS_URL is required in release. Pass --dart-define=WS_URL=...',
+      );
+    }
+    return _debugWsUrl;
+  }
 
   static const String accessTokenKey = 'access_token';
   static const String refreshTokenKey = 'refresh_token';

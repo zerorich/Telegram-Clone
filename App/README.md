@@ -1,45 +1,77 @@
 # Telegram Clone — Flutter App
 
-Mobile client for the Telegram Clone messenger.
+Мобильный клиент (Android) для мессенджера Telegram Clone.
 
-## Setup
+## Требования
 
-1. Install [Flutter](https://docs.flutter.dev/get-started/install) (stable channel).
+- [Flutter](https://docs.flutter.dev/get-started/install) (stable)
+- Запущенный Go-бэкенд из [`../server/`](../server/)
 
-2. From this directory:
+## Установка и запуск
 
 ```bash
 flutter pub get
-flutter run
+flutter run \
+  --dart-define=API_BASE_URL=http://10.0.2.2:8080 \
+  --dart-define=WS_URL=ws://10.0.2.2:8080/ws
 ```
 
-3. Ensure the Go backend is running (`server/` on port 8080).
+### Переменные сборки (`--dart-define`)
 
-## API base URL
+| Переменная | Назначение | Эмулятор Android |
+| --- | --- | --- |
+| `API_BASE_URL` | Базовый URL REST API | `http://10.0.2.2:8080` |
+| `WS_URL` | Полный URL WebSocket | `ws://10.0.2.2:8080/ws` |
 
-Edit `lib/core/constants.dart`:
+`10.0.2.2` — loopback хост-машины из Android-эмулятора.
 
-- **Android emulator:** `http://10.0.2.2:8080` (default)
-- **Physical device:** use your machine's LAN IP, e.g. `http://192.168.1.100:8080`
+На **физическом устройстве** укажите LAN IP компьютера с сервером, например:
 
-Also update `wsUrl` to match (`ws://...`).
+```bash
+flutter run \
+  --dart-define=API_BASE_URL=http://192.168.1.100:8080 \
+  --dart-define=WS_URL=ws://192.168.1.100:8080/ws
+```
 
-## Features
+Значения читаются в `lib/core/constants.dart` через `String.fromEnvironment`.
 
-- Registration (phone + email → OTP → profile)
-- Login (email or phone + password)
-- Chat list with search and pull-to-refresh
-- Real-time messaging via WebSocket
-- Text, image, file, voice messages
-- Direct and group chats
-- Profile and settings (dark/light theme)
+## Аутентификация
 
-## First run
+Вход только по **email + OTP** (без пароля):
 
-If the Android folder was generated manually, run once:
+1. **Email** — пользователь вводит адрес, приложение вызывает `POST /api/auth/send-code`.
+2. **OTP** — ввод 6-значного кода, `POST /api/auth/verify-code`.
+3. **Профиль** (новые пользователи) — имя, фамилия, телефон; `POST /api/auth/complete-profile` с registration token.
+
+Существующие пользователи после шага 2 сразу получают access/refresh tokens.
+
+В dev-режиме сервера OTP печатается в консоль API, если SMTP не настроен.
+
+## Возможности
+
+- Список чатов с поиском и pull-to-refresh
+- Realtime через WebSocket
+- Текст, изображения, видео, файлы, голосовые сообщения
+- Личные и групповые чаты, 1:1 звонки (WebRTC)
+- Push: FCM + локальные уведомления (замените `android/app/google-services.json` на свой Firebase-проект)
+- Профиль и настройки (светлая / тёмная тема, уведомления)
+
+## Тема и токены
+
+Цвета и отступы генерируются из [`../design/tokens.json`](../design/tokens.json):
+
+```bash
+node ../design/generate.mjs
+```
+
+См. [`../design/README.md`](../design/README.md).
+
+## Первый запуск
+
+Если каталог `android/` был создан вручную:
 
 ```bash
 flutter create . --project-name telegramclone
 ```
 
-This merges platform files; keep `lib/` and `pubspec.yaml` as the source of truth.
+Сохраните `lib/` и `pubspec.yaml` как источник правды.

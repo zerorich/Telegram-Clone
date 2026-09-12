@@ -66,11 +66,11 @@ class MediaMessage extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.insert_drive_file,
-                color: isMine ? Colors.white : null),
+                color: isMine ? Colors.white : null,),
             const SizedBox(width: 8),
             Flexible(
               child: Text(
-                message.content ?? 'File',
+                message.content ?? 'Файл',
                 style: TextStyle(color: isMine ? Colors.white : null),
               ),
             ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:telegramclone/core/theme.dart';
+import 'package:telegramclone/core/theme_extensions.dart';
 
 class TelegramFabs extends StatelessWidget {
   const TelegramFabs({
@@ -17,8 +18,11 @@ class TelegramFabs extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Material(
-          color: AppColors.darkTileHighlight,
+        Semantics(
+          label: 'Новое сообщение',
+          button: true,
+          child: Material(
+          color: context.tileHighlight,
           elevation: 4,
           borderRadius: BorderRadius.circular(28),
           child: InkWell(
@@ -31,8 +35,12 @@ class TelegramFabs extends StatelessWidget {
             ),
           ),
         ),
+        ),
         const SizedBox(height: 12),
-        Material(
+        Semantics(
+          label: 'Камера',
+          button: true,
+          child: Material(
           color: AppColors.teal,
           elevation: 6,
           borderRadius: BorderRadius.circular(16),
@@ -45,6 +53,7 @@ class TelegramFabs extends StatelessWidget {
               child: Icon(Icons.camera_alt_rounded, color: Colors.white, size: 28),
             ),
           ),
+        ),
         ),
       ],
     );

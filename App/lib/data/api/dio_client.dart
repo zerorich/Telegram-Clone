@@ -21,7 +21,7 @@ class DioClient {
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 30),
       headers: {'Content-Type': 'application/json'},
-    ));
+    ),);
 
     dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
@@ -92,7 +92,7 @@ class DioClient {
           return handler.next(error);
         }
       },
-    ));
+    ),);
   }
 
   void setAuthFailureCallback(AuthFailureCallback callback) {
@@ -116,9 +116,9 @@ class DioClient {
       if (refresh == null) return false;
       final tokens = await _authApi.refresh(refresh);
       await _storage.write(
-          key: AppConstants.accessTokenKey, value: tokens.accessToken);
+          key: AppConstants.accessTokenKey, value: tokens.accessToken,);
       await _storage.write(
-          key: AppConstants.refreshTokenKey, value: tokens.refreshToken);
+          key: AppConstants.refreshTokenKey, value: tokens.refreshToken,);
       AppConstants.cachedAccessToken = tokens.accessToken;
       return true;
     } catch (_) {

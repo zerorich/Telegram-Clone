@@ -44,7 +44,7 @@ class MessagesApi {
     final res = await _dio.post('/api/chats/$chatId/messages', data: {
       'content': content,
       if (replyToId != null) 'reply_to_id': replyToId,
-    });
+    },);
     return MessageModel.fromJson(_parseData(res.data));
   }
 
@@ -89,7 +89,7 @@ class MessagesApi {
   Future<void> markRead(String chatId, String messageId) async {
     final res = await _dio.post('/api/chats/$chatId/messages/read', data: {
       'message_id': messageId,
-    });
+    },);
     _ensureSuccess(res.data);
   }
 

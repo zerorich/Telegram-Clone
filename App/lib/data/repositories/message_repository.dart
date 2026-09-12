@@ -22,39 +22,12 @@ class MessageRepository {
     return list.map((e) => MessageModel.fromJson(e)).toList();
   }
 
-  Map<String, dynamic> _messageToCache(MessageModel m) => {
-        'id': m.id,
-        'chat_id': m.chatId,
-        'sender_id': m.senderId,
-        'type': messageTypeToString(m.type),
-        'content': m.content,
-        'media_url': m.mediaUrl,
-        'duration_sec': m.durationSec,
-        'reply_to_id': m.replyToId,
-        'is_edited': m.isEdited,
-        'is_deleted': m.isDeleted,
-        'is_read': m.isRead,
-        'is_pinned': m.isPinned,
-        if (m.pinnedAt != null) 'pinned_at': m.pinnedAt!.toIso8601String(),
-        'forwarded_from_user_id': m.forwardedFromUserId,
-        'forwarded_from_chat_id': m.forwardedFromChatId,
-        if (m.forwardedFromUser != null)
-          'forwarded_from_user': {
-            'id': m.forwardedFromUser!.id,
-            'phone': m.forwardedFromUser!.phone,
-            'email': m.forwardedFromUser!.email,
-            'name': m.forwardedFromUser!.name,
-            'surname': m.forwardedFromUser!.surname,
-            'username': m.forwardedFromUser!.username,
-            'avatar_url': m.forwardedFromUser!.avatarUrl,
-            'is_verified': m.forwardedFromUser!.isVerified,
-          },
-        'created_at': m.createdAt.toIso8601String(),
-      };
-
   Future<void> cacheMessages(String chatId, List<MessageModel> messages) async {
     final box = await _box(chatId);
-    await box.put('messages', messages.map(_messageToCache).toList());
+    await box.put(
+      'messages',
+      messages.map((m) => m.toJson(forCache: true)).toList(),
+    );
   }
 
   Future<void> clearCachedMessages(String chatId) async {
@@ -70,14 +43,14 @@ class MessageRepository {
       _api.listMessages(chatId, cursor: cursor, limit: limit);
 
   Future<MessageModel> sendText(String chatId,
-          {required String content, String? replyToId}) =>
+          {required String content, String? replyToId,}) =>
       _api.sendText(chatId, content: content, replyToId: replyToId);
 
   Future<MessageModel> sendMedia(String chatId,
           {required String type,
           required String filePath,
           int? durationSec,
-          String? replyToId}) =>
+          String? replyToId,}) =>
       _api.sendMedia(
         chatId,
         type: type,

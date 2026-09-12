@@ -66,7 +66,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               parent: animation,
               curve: Curves.easeOutCubic,
               reverseCurve: Curves.easeInCubic,
-            ));
+            ),);
             return SlideTransition(position: offset, child: child);
           },
         ),
