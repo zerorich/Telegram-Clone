@@ -1,16 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { Check, CheckCheck, Forward } from 'lucide-react'
 import { MediaContent } from './MediaContent.jsx'
-import { formatMessageTime } from '../../lib/format.js'
+import { formatMessageTime, mediaTypeLabel } from '../../lib/format.js'
 import { userDisplayName } from '../../lib/chat.js'
 import styles from './MessageBubble.module.css'
-
-const TYPE_LABELS = {
-  image: 'Фото',
-  video: 'Видео',
-  voice: 'Голосовое сообщение',
-  file: 'Файл',
-}
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/g
 
@@ -179,7 +172,7 @@ export function MessageBubble({
               {replyTo.is_deleted
                 ? 'Сообщение удалено'
                 : replyTo.content?.trim() ||
-                  TYPE_LABELS[replyTo.type] ||
+                  mediaTypeLabel(replyTo.type) ||
                   ''}
             </span>
           </div>

@@ -1,36 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import {
-  Camera,
-  Check,
-  LogOut,
-  Pencil,
-  Search,
-  Trash2,
-  UserPlus,
-  X,
-} from 'lucide-react'
+import { LogOut } from 'lucide-react'
 import { Modal } from '../../components/Modal.jsx'
-import { Avatar } from '../../components/Avatar.jsx'
 import { Button } from '../../components/Button.jsx'
-import { Input } from '../../components/Input.jsx'
 import { Spinner } from '../../components/Spinner.jsx'
+import { ConfirmDialog } from '../../components/ConfirmDialog.jsx'
 import { chatsApi } from '../../api/chats.js'
-import { usersApi } from '../../api/users.js'
 import { useAuthStore } from '../../store/authStore.js'
 import { useChatsStore } from '../../store/chatsStore.js'
 import { useUiStore } from '../../store/uiStore.js'
 import { describeError } from '../../api/client.js'
-import { mediaUrl } from '../../lib/env.js'
 import { userDisplayName } from '../../lib/chat.js'
+import { GroupInfoHeader } from './GroupInfoHeader.jsx'
+import { GroupMembersSection } from './GroupMembersSection.jsx'
+import { AddMembersDialog } from './AddMembersDialog.jsx'
 import styles from './Profile.module.css'
-import chatStyles from '../chats/NewChat.module.css'
-
-const ROLE_LABEL = {
-  owner: 'Создатель',
-  admin: 'Администратор',
-  member: 'Участник',
-}
 
 export function GroupInfoModal() {
   const navigate = useNavigate()
@@ -49,6 +33,8 @@ export function GroupInfoModal() {
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const [confirmRemoveMember, setConfirmRemoveMember] = useState(null)
+  const [confirmLeave, setConfirmLeave] = useState(false)
   const fileRef = useRef(null)
 
   useEffect(() => {
@@ -110,7 +96,7 @@ export function GroupInfoModal() {
   }
 
   async function removeMember(member) {
-    if (!window.confirm(`Удалить ${userDisplayName(member.user)}?`)) return
+    setConfirmRemoveMember(null)
     try {
       await chatsApi.removeMember(chatId, member.user_id)
       setDetail((cur) => ({
@@ -123,7 +109,7 @@ export function GroupInfoModal() {
   }
 
   async function leave() {
-    if (!window.confirm('Выйти из группы?')) return
+    setConfirmLeave(false)
     try {
       await chatsApi.leave(chatId)
       removeChat(chatId)
@@ -145,293 +131,82 @@ export function GroupInfoModal() {
   }
 
   return (
-    <Modal open onClose={() => navigate(-1)} title="Информация о группе" size="md">
-      {loading ? (
-        <div className={styles.head}>
-          <Spinner size={28} label="Загрузка" />
-        </div>
-      ) : error || !detail ? (
-        <div className={styles.banner}>
-          {error ? describeError(error) : 'Группа не найдена'}
-        </div>
-      ) : (
-        <>
-          <div className={styles.head}>
-            <button
-              type="button"
-              className={styles.avatarBtn}
-              onClick={() => canManage && fileRef.current?.click()}
-              disabled={!canManage || saving}
-              aria-label="Изменить аватар"
-            >
-              <Avatar
-                src={mediaUrl(detail.chat.avatar_url, { auth: true })}
-                name={detail.chat.name}
-                size={112}
-              />
-              {canManage ? (
-                <span className={styles.avatarOverlay} aria-hidden>
-                  <Camera size={18} />
-                </span>
-              ) : null}
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/jpeg,image/png"
-              hidden
-              onChange={changeAvatar}
-            />
-          </div>
-
-          {editingName ? (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-              <Input
-                label="Название"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                autoFocus
-              />
-              <Button onClick={saveName} loading={saving} size="sm">
-                <Check size={16} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setName(detail.chat.name ?? '')
-                  setEditingName(false)
-                }}
-              >
-                <X size={16} />
-              </Button>
-            </div>
-          ) : (
-            <div className={styles.row}>
-              <div className={styles.rowLabel}>Название</div>
-              <div className={styles.rowValue} style={{ display: 'flex', gap: 8 }}>
-                <span style={{ flex: 1 }}>{detail.chat.name}</span>
-                {canManage ? (
-                  <button
-                    type="button"
-                    onClick={() => setEditingName(true)}
-                    aria-label="Изменить название"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    <Pencil size={16} />
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          )}
-
-          <div className={styles.section}>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
-              <div className={styles.sectionTitle}>
-                Участники: {detail.members.length}
-              </div>
-              {canManage ? (
-                <Button size="sm" variant="ghost" onClick={() => setAddOpen(true)}>
-                  <UserPlus size={16} /> Добавить
-                </Button>
-              ) : null}
-            </div>
-            <div>
-              {detail.members.map((m) => (
-                <div key={m.user_id} className={styles.memberRow}>
-                  <Avatar
-                    src={mediaUrl(m.user?.avatar_url, { auth: true })}
-                    name={userDisplayName(m.user)}
-                    size={42}
-                  />
-                  <div className={styles.memberBody}>
-                    <div className={styles.memberName}>
-                      {userDisplayName(m.user)}
-                    </div>
-                    <div className={styles.memberRole}>
-                      {ROLE_LABEL[m.role] ?? m.role}
-                    </div>
-                  </div>
-                  {canManage &&
-                  m.user_id !== user?.id &&
-                  m.role !== 'owner' ? (
-                    <button
-                      type="button"
-                      onClick={() => removeMember(m)}
-                      aria-label="Удалить участника"
-                      style={{ color: 'var(--danger)', padding: 6 }}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className={styles.actions} style={{ marginTop: 16 }}>
-            <Button variant="dangerGhost" onClick={leave}>
-              <LogOut size={16} /> Выйти из группы
-            </Button>
-          </div>
-
-          {addOpen ? (
-            <AddMembersDialog
-              existingIds={detail.members.map((m) => m.user_id)}
-              onClose={() => setAddOpen(false)}
-              onConfirm={addMembers}
-            />
-          ) : null}
-        </>
-      )}
-    </Modal>
-  )
-}
-
-function AddMembersDialog({ existingIds, onClose, onConfirm }) {
-  const showToast = useUiStore((s) => s.showToast)
-  const [query, setQuery] = useState('')
-  const [results, setResults] = useState([])
-  const [selected, setSelected] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const debounceRef = useRef(null)
-
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    const trimmed = query.trim()
-    if (trimmed.length < 2) {
-      setResults([])
-      return undefined
-    }
-    setLoading(true)
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const list = await usersApi.search(trimmed)
-        setResults(list.filter((u) => !existingIds.includes(u.id)))
-      } catch (err) {
-        showToast(describeError(err), { kind: 'error' })
-      } finally {
-        setLoading(false)
-      }
-    }, 250)
-    return () => debounceRef.current && clearTimeout(debounceRef.current)
-  }, [query, existingIds, showToast])
-
-  function toggle(u) {
-    setSelected((cur) =>
-      cur.some((x) => x.id === u.id)
-        ? cur.filter((x) => x.id !== u.id)
-        : [...cur, u],
-    )
-  }
-
-  async function submit() {
-    if (!selected.length) return
-    setSubmitting(true)
-    try {
-      await onConfirm(selected.map((u) => u.id))
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title="Добавить участников"
-      size="md"
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>
-            Отмена
-          </Button>
-          <Button onClick={submit} loading={submitting} disabled={!selected.length}>
-            Добавить
-          </Button>
-        </>
-      }
-    >
-      {selected.length ? (
-        <div className={chatStyles.chips}>
-          {selected.map((u) => (
-            <span key={u.id} className={chatStyles.chip}>
-              {userDisplayName(u)}
-              <button
-                type="button"
-                onClick={() => toggle(u)}
-                aria-label="Убрать"
-              >
-                <X size={14} />
-              </button>
-            </span>
-          ))}
-        </div>
-      ) : null}
-      <div className={chatStyles.searchBox}>
-        <Search size={18} className={chatStyles.searchIcon} />
-        <input
-          type="search"
-          className={chatStyles.searchInput}
-          placeholder="Поиск пользователей"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          autoFocus
-        />
-      </div>
-      <div className={chatStyles.results}>
+    <>
+      <Modal open onClose={() => navigate(-1)} title="Информация о группе" size="md">
         {loading ? (
-          <div className={chatStyles.center}>
-            <Spinner size={22} />
+          <div className={styles.head}>
+            <Spinner size={28} label="Загрузка" />
           </div>
-        ) : !results.length ? (
-          <div className={chatStyles.center}>
-            <p className={chatStyles.hint}>
-              {query.trim().length < 2
-                ? 'Введите минимум 2 символа'
-                : 'Ничего не найдено'}
-            </p>
+        ) : error || !detail ? (
+          <div className={styles.banner}>
+            {error ? describeError(error) : 'Группа не найдена'}
           </div>
         ) : (
-          results.map((u) => {
-            const picked = selected.some((x) => x.id === u.id)
-            return (
-              <button
-                key={u.id}
-                type="button"
-                className={chatStyles.row}
-                onClick={() => toggle(u)}
-              >
-                <Avatar
-                  src={mediaUrl(u.avatar_url, { auth: true })}
-                  name={userDisplayName(u)}
-                  size={40}
-                />
-                <div className={chatStyles.rowBody}>
-                  <div className={chatStyles.rowName}>
-                    {userDisplayName(u)}
-                  </div>
-                  <div className={chatStyles.rowSub}>
-                    {u.username ? `@${u.username}` : u.email || u.phone}
-                  </div>
-                </div>
-                {picked ? (
-                  <span className={chatStyles.check}>
-                    <Check size={14} />
-                  </span>
-                ) : null}
-              </button>
-            )
-          })
+          <>
+            <GroupInfoHeader
+              chat={detail.chat}
+              canManage={canManage}
+              saving={saving}
+              editingName={editingName}
+              name={name}
+              onNameChange={setName}
+              onStartEdit={() => setEditingName(true)}
+              onCancelEdit={() => {
+                setName(detail.chat.name ?? '')
+                setEditingName(false)
+              }}
+              onSaveName={saveName}
+              onAvatarClick={() => canManage && fileRef.current?.click()}
+              fileRef={fileRef}
+              onAvatarChange={changeAvatar}
+            />
+
+            <GroupMembersSection
+              members={detail.members}
+              canManage={canManage}
+              currentUserId={user?.id}
+              onAdd={() => setAddOpen(true)}
+              onRemove={(m) => setConfirmRemoveMember(m)}
+            />
+
+            <div className={styles.actions} style={{ marginTop: 16 }}>
+              <Button variant="dangerGhost" onClick={() => setConfirmLeave(true)}>
+                <LogOut size={16} /> Выйти из группы
+              </Button>
+            </div>
+
+            {addOpen ? (
+              <AddMembersDialog
+                existingIds={detail.members.map((m) => m.user_id)}
+                onClose={() => setAddOpen(false)}
+                onConfirm={addMembers}
+              />
+            ) : null}
+          </>
         )}
-      </div>
-    </Modal>
+      </Modal>
+
+      <ConfirmDialog
+        open={!!confirmRemoveMember}
+        onClose={() => setConfirmRemoveMember(null)}
+        onConfirm={() => removeMember(confirmRemoveMember)}
+        title="Удалить участника"
+        message={
+          confirmRemoveMember
+            ? `Удалить ${userDisplayName(confirmRemoveMember.user)}?`
+            : ''
+        }
+        confirmLabel="Удалить"
+      />
+
+      <ConfirmDialog
+        open={confirmLeave}
+        onClose={() => setConfirmLeave(false)}
+        onConfirm={leave}
+        title="Выйти из группы"
+        message="Выйти из группы?"
+        confirmLabel="Выйти"
+      />
+    </>
   )
 }

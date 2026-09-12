@@ -9,6 +9,7 @@ import {
 } from 'react-router-dom'
 import { useAuthStore } from './store/authStore.js'
 import { installWsBridge } from './ws/bridge.js'
+import { registerServiceWorker } from './lib/notifications.js'
 import { LoginPage } from './features/auth/LoginPage.jsx'
 import { OtpPage } from './features/auth/OtpPage.jsx'
 import { CompleteProfilePage } from './features/auth/CompleteProfilePage.jsx'
@@ -19,8 +20,11 @@ import { ProfileModal } from './features/profile/ProfileModal.jsx'
 import { SettingsModal } from './features/profile/SettingsModal.jsx'
 import { UserProfileModal } from './features/profile/UserProfileModal.jsx'
 import { GroupInfoModal } from './features/profile/GroupInfoModal.jsx'
+import { CallOverlay } from './features/call/CallOverlay.jsx'
 import { Toast } from './components/Toast.jsx'
 import { Spinner } from './components/Spinner.jsx'
+import { ErrorBoundary } from './components/ErrorBoundary.jsx'
+import { ThemeColorMeta } from './components/ThemeColorMeta.jsx'
 
 function BootGate({ children }) {
   const bootstrapped = useAuthStore((s) => s.bootstrapped)
@@ -65,14 +69,6 @@ function PublicRoute({ children }) {
   return children
 }
 
-/**
- * Background-location pattern: when a navigation passes
- * `state: { backgroundLocation }`, the AppLayout is rendered against the
- * background URL and the foreground route is overlaid as a modal.
- *
- * When a modal route is opened directly (no backgroundLocation), we still
- * render the modal but fall AppLayout back to "/" so the shell stays visible.
- */
 const MODAL_PATTERNS = [
   /^\/new-chat$/,
   /^\/new-group$/,
@@ -146,14 +142,19 @@ function RoutedApp() {
 export default function App() {
   useEffect(() => {
     installWsBridge()
+    registerServiceWorker()
   }, [])
 
   return (
-    <BrowserRouter>
-      <BootGate>
-        <RoutedApp />
-        <Toast />
-      </BootGate>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <ThemeColorMeta />
+        <BootGate>
+          <RoutedApp />
+          <CallOverlay />
+          <Toast />
+        </BootGate>
+      </BrowserRouter>
+    </ErrorBoundary>
   )
 }

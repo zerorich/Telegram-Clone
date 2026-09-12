@@ -1,20 +1,14 @@
 import { useEffect } from 'react'
 import { Pin, X } from 'lucide-react'
 import { useMessagesStore } from '../../store/messagesStore.js'
+import { mediaTypeLabel } from '../../lib/format.js'
 import styles from './PinnedBanner.module.css'
-
-const TYPE_LABELS = {
-  image: 'Фото',
-  video: 'Видео',
-  voice: 'Голосовое сообщение',
-  file: 'Файл',
-}
 
 function snippetFor(message) {
   if (!message) return ''
   if (message.is_deleted) return 'Сообщение удалено'
   if (message.type === 'text') return (message.content ?? '').trim()
-  return TYPE_LABELS[message.type] || message.content || ''
+  return mediaTypeLabel(message.type) || message.content || ''
 }
 
 /**

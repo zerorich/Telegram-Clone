@@ -56,11 +56,16 @@ export function formatFileSize(bytes) {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} ГБ`
 }
 
-const MEDIA_LABELS = {
+/** Single source for media / non-text message type labels (Russian). */
+export const MEDIA_TYPE_LABELS = {
   image: 'Фото',
   video: 'Видео',
   voice: 'Голосовое сообщение',
   file: 'Файл',
+}
+
+export function mediaTypeLabel(type) {
+  return MEDIA_TYPE_LABELS[type] ?? ''
 }
 
 export function formatMessagePreview({
@@ -76,7 +81,7 @@ export function formatMessagePreview({
   }
   const body =
     type && type !== 'text'
-      ? (MEDIA_LABELS[type] ?? '')
+      ? mediaTypeLabel(type)
       : (content ?? '').trim()
   if (isMine) return `Вы: ${body}`
   if (isGroup && senderName) return `${senderName}: ${body}`

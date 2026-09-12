@@ -1,20 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowDown, MoreVertical, Bookmark } from 'lucide-react'
 import { useOpenModal } from '../../hooks/useOpenModal.js'
-import { Avatar } from '../../components/Avatar.jsx'
-import { Spinner } from '../../components/Spinner.jsx'
-import { Modal } from '../../components/Modal.jsx'
-import { Button } from '../../components/Button.jsx'
-import { ComingSoonModal } from '../../components/ComingSoonModal.jsx'
 import { Composer } from './Composer.jsx'
-import { MessageBubble } from './MessageBubble.jsx'
-import { DateSeparator } from './DateSeparator.jsx'
-import { MessageContextMenu } from './MessageContextMenu.jsx'
-import { ChatHeaderMenu } from './ChatHeaderMenu.jsx'
-import { PinnedBanner } from './PinnedBanner.jsx'
-import { InChatSearch } from './InChatSearch.jsx'
-import { ForwardPickerModal } from './ForwardPickerModal.jsx'
+import { ChatStageHeader } from './ChatStageHeader.jsx'
+import { ChatMessageList } from './ChatMessageList.jsx'
+import { ChatStageModals } from './ChatStageModals.jsx'
 import { useAuthStore } from '../../store/authStore.js'
 import { useChatsStore } from '../../store/chatsStore.js'
 import { useMessagesStore } from '../../store/messagesStore.js'
@@ -24,35 +14,18 @@ import {
   chatAvatarUrl,
   chatDisplayTitle,
   isSavedChat,
-  memberCountLabel,
   peerMember,
   userDisplayName,
 } from '../../lib/chat.js'
-import { formatChatDateSeparator } from '../../lib/format.js'
 import { chatsApi } from '../../api/chats.js'
 import { describeError } from '../../api/client.js'
+import { callManager } from '../../lib/callManager.js'
 import { useIsDesktop } from '../../hooks/useMediaQuery.js'
 import styles from './ChatStage.module.css'
 
 const SCROLL_BOTTOM_THRESHOLD = 80
 const LOAD_MORE_THRESHOLD = 120
 const MAX_SCROLL_TO_TOP_BATCHES = 10
-
-function sameDay(a, b) {
-  if (!a || !b) return false
-  const ad = new Date(a)
-  const bd = new Date(b)
-  return (
-    ad.getFullYear() === bd.getFullYear() &&
-    ad.getMonth() === bd.getMonth() &&
-    ad.getDate() === bd.getDate()
-  )
-}
-
-function isAdminOrOwner(member) {
-  const role = member?.role
-  return role === 'admin' || role === 'owner'
-}
 
 function scrollToMessage(chatId, messageId) {
   if (!chatId || !messageId) return false
@@ -62,6 +35,11 @@ function scrollToMessage(chatId, messageId) {
   node.classList.add('msg-highlight')
   setTimeout(() => node.classList.remove('msg-highlight'), 1500)
   return true
+}
+
+function isAdminOrOwner(member) {
+  const role = member?.role
+  return role === 'admin' || role === 'owner'
 }
 
 export function ChatStage({ chatId, showBack, onBack }) {
@@ -104,13 +82,14 @@ export function ChatStage({ chatId, showBack, onBack }) {
   const [detailError, setDetailError] = useState(null)
   const [showJumpDown, setShowJumpDown] = useState(false)
   const [stickToBottom, setStickToBottom] = useState(true)
-  const [ctxMenu, setCtxMenu] = useState(null) // { message, anchor }
+  const [ctxMenu, setCtxMenu] = useState(null)
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
-  const [comingSoonOpen, setComingSoonOpen] = useState(false)
-  const [forwardSource, setForwardSource] = useState(null) // message
+  const [callStartOpen, setCallStartOpen] = useState(false)
+  const [forwardSource, setForwardSource] = useState(null)
   const [confirmClear, setConfirmClear] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [confirmDeleteMessage, setConfirmDeleteMessage] = useState(null)
   const [scrollToTopRunning, setScrollToTopRunning] = useState(false)
   const [busyAction, setBusyAction] = useState(false)
 
@@ -145,7 +124,6 @@ export function ChatStage({ chatId, showBack, onBack }) {
     ? members.find((m) => m.user_id === someoneTyping)
     : null
 
-  // Membership of the current user (for delete-permission checks in groups)
   const myMembership = useMemo(
     () => members.find((m) => m.user_id === user?.id) ?? null,
     [members, user?.id],
@@ -290,10 +268,6 @@ export function ChatStage({ chatId, showBack, onBack }) {
     requestAnimationFrame(() => scrollToBottom(false))
   }
 
-  function openMenuForMessage(message, anchor) {
-    setCtxMenu({ message, anchor })
-  }
-
   function canDeleteMessage(message) {
     if (!message || message.is_deleted) return false
     if (message.sender_id === user?.id) return true
@@ -311,7 +285,8 @@ export function ChatStage({ chatId, showBack, onBack }) {
   }
 
   async function doDeleteMessage(message) {
-    if (!window.confirm('Удалить сообщение?')) return
+    if (!message) return
+    setConfirmDeleteMessage(null)
     try {
       await deleteMessage(chatId, message.id)
     } catch (err) {
@@ -435,7 +410,6 @@ export function ChatStage({ chatId, showBack, onBack }) {
     if (!chatId) return
     try {
       await chatsApi.unmuteChat(chatId)
-      // Mark as unmuted by removing the field locally
       const list = useChatsStore.getState().chats
       const idx = list.findIndex((c) => c.id === chatId)
       if (idx !== -1) {
@@ -474,6 +448,16 @@ export function ChatStage({ chatId, showBack, onBack }) {
     })
   }
 
+  function handleStartCall(media) {
+    setCallStartOpen(false)
+    if (!peer?.user_id) {
+      showToast('Звонки доступны только в личных чатах', { kind: 'info' })
+      return
+    }
+    const peerName = peer.user ? userDisplayName(peer.user) : title
+    callManager.startCall(peer.user_id, peerName, media)
+  }
+
   if (!chatId) {
     return (
       <div className={styles.empty}>
@@ -499,190 +483,58 @@ export function ChatStage({ chatId, showBack, onBack }) {
 
   return (
     <div className={styles.stage}>
-      <header className={styles.header}>
-        {showBack ? (
-          <button
-            type="button"
-            className={styles.iconBtn}
-            aria-label="Назад"
-            onClick={onBack}
-          >
-            <ArrowLeft size={22} />
-          </button>
-        ) : null}
-        <button
-          type="button"
-          className={styles.titleLink}
-          onClick={() => {
-            if (isSaved) return
-            if (isGroup) openModal(`/group/${chatId}`)
-            else if (peer) openModal(`/user/${peer.user_id}`)
-          }}
-          disabled={!chat || isSaved}
-        >
-          <Avatar
-            src={avatar}
-            name={title}
-            size={42}
-            saved={isSaved}
-          />
-          <div className={styles.titleBody}>
-            <div className={styles.titleText}>{title || 'Чат'}</div>
-            <div className={styles.subtitle}>
-              {isSaved ? (
-                'личное пространство'
-              ) : someoneTyping ? (
-                <span className={styles.subtitleTyping}>
-                  {typingMember?.user
-                    ? `${userDisplayName(typingMember.user)} печатает…`
-                    : 'печатает…'}
-                </span>
-              ) : isGroup ? (
-                memberCountLabel(members.length || chat?.members?.length || 0)
-              ) : peerOnline ? (
-                <span className={styles.subtitleOnline}>в сети</span>
-              ) : peer ? (
-                'был(а) недавно'
-              ) : (
-                ''
-              )}
-            </div>
-          </div>
-        </button>
+      <ChatStageHeader
+        showBack={showBack}
+        onBack={onBack}
+        chat={chat}
+        isSaved={isSaved}
+        isGroup={isGroup}
+        title={title}
+        avatar={avatar}
+        membersCount={members.length || chat?.members?.length || 0}
+        peer={peer}
+        peerOnline={peerOnline}
+        someoneTyping={someoneTyping}
+        typingMember={typingMember}
+        headerMenuOpen={headerMenuOpen}
+        onToggleHeaderMenu={(v) =>
+          setHeaderMenuOpen(typeof v === 'boolean' ? v : (o) => !o)
+        }
+        onOpenProfile={() => {
+          if (isSaved) return
+          if (isGroup) openModal(`/group/${chatId}`)
+          else if (peer) openModal(`/user/${peer.user_id}`)
+        }}
+        onToggleSearch={() => setSearchOpen(true)}
+        onCall={() => setCallStartOpen(true)}
+        onScrollToTop={doScrollToTop}
+        onClearHistory={() => setConfirmClear(true)}
+        onDeleteChat={() => setConfirmDelete(true)}
+        onMute={doMute}
+        onUnmute={doUnmute}
+      />
 
-        <div className={styles.headerActions}>
-          <button
-            type="button"
-            className={styles.iconBtn}
-            aria-label="Меню чата"
-            aria-expanded={headerMenuOpen}
-            onClick={() => setHeaderMenuOpen((v) => !v)}
-          >
-            <MoreVertical size={22} />
-          </button>
-        </div>
-
-        <ChatHeaderMenu
-          open={headerMenuOpen}
-          chat={chat}
-          isSaved={isSaved}
-          onClose={() => setHeaderMenuOpen(false)}
-          onToggleSearch={() => setSearchOpen(true)}
-          onCall={() => setComingSoonOpen(true)}
-          onScrollToTop={doScrollToTop}
-          onClearHistory={() => setConfirmClear(true)}
-          onDeleteChat={() => setConfirmDelete(true)}
-          onMute={(until) => doMute(until)}
-          onUnmute={doUnmute}
-        />
-      </header>
-
-      {searchOpen ? (
-        <InChatSearch
-          chatId={chatId}
-          onClose={() => setSearchOpen(false)}
-          onPick={handleSearchPick}
-        />
-      ) : null}
-
-      <div className={styles.scroller} ref={scrollerRef} onScroll={onScroll}>
-        {!showSavedEmpty ? (
-          <PinnedBanner
-            chatId={chatId}
-            onJump={handlePinnedJump}
-            onUnpin={(m) => doTogglePin(m)}
-          />
-        ) : null}
-
-        {detailError && !chat ? (
-          <div className={styles.center}>{describeError(detailError)}</div>
-        ) : loading && !messages.length ? (
-          <div className={styles.center}>
-            <Spinner size={28} label="Загрузка" />
-          </div>
-        ) : showSavedEmpty ? (
-          <div className={styles.savedEmpty}>
-            <div className={styles.savedEmptyIcon} aria-hidden>
-              <Bookmark size={48} />
-            </div>
-            <p className={styles.emptyText}>
-              Сохраняйте важные сообщения здесь
-            </p>
-          </div>
-        ) : (
-          <div className={styles.thread}>
-            {loadingMore || scrollToTopRunning ? (
-              <div className={styles.loaderRow}>
-                <Spinner size={20} />
-              </div>
-            ) : null}
-            {messages.length === 0 ? (
-              <div className={styles.center}>
-                <p className={styles.emptyText}>
-                  Нет сообщений. Напишите первым!
-                </p>
-              </div>
-            ) : (
-              messages.map((m, i) => {
-                const prev = messages[i - 1]
-                const next = messages[i + 1]
-                const isMine = m.sender_id === user?.id
-                const showDate =
-                  !prev || !sameDay(prev.created_at, m.created_at)
-                const showSenderName =
-                  isGroup &&
-                  !isMine &&
-                  (!prev ||
-                    prev.sender_id !== m.sender_id ||
-                    !sameDay(prev.created_at, m.created_at))
-                const showTail =
-                  !next ||
-                  next.sender_id !== m.sender_id ||
-                  !sameDay(next.created_at, m.created_at)
-                const replyTo = m.reply_to_id
-                  ? (messages.find((x) => x.id === m.reply_to_id) ?? null)
-                  : null
-                const senderMember = members.find(
-                  (mem) => mem.user_id === m.sender_id,
-                )
-                const senderName = senderMember?.user
-                  ? userDisplayName(senderMember.user)
-                  : null
-                return (
-                  <div key={m.id}>
-                    {showDate ? (
-                      <DateSeparator
-                        label={formatChatDateSeparator(m.created_at)}
-                      />
-                    ) : null}
-                    <MessageBubble
-                      message={m}
-                      isMine={isMine}
-                      showSenderName={showSenderName}
-                      senderName={senderName}
-                      replyTo={replyTo}
-                      showTail={showTail}
-                      onRequestMenu={(anchor) => openMenuForMessage(m, anchor)}
-                    />
-                  </div>
-                )
-              })
-            )}
-            <div ref={bottomAnchorRef} />
-          </div>
-        )}
-      </div>
-
-      {showJumpDown ? (
-        <button
-          type="button"
-          className={styles.jumpBtn}
-          onClick={() => scrollToBottom()}
-          aria-label="К новым сообщениям"
-        >
-          <ArrowDown size={20} />
-        </button>
-      ) : null}
+      <ChatMessageList
+        ref={scrollerRef}
+        chatId={chatId}
+        messages={messages}
+        members={members}
+        userId={user?.id}
+        isGroup={isGroup}
+        loading={loading}
+        loadingMore={loadingMore}
+        scrollToTopRunning={scrollToTopRunning}
+        showSavedEmpty={showSavedEmpty}
+        detailError={detailError}
+        chat={chat}
+        showJumpDown={showJumpDown}
+        onScroll={onScroll}
+        onJumpDown={() => scrollToBottom()}
+        onPinnedJump={handlePinnedJump}
+        onUnpin={(m) => doTogglePin(m)}
+        onRequestMenu={(message, anchor) => setCtxMenu({ message, anchor })}
+        bottomAnchorRef={bottomAnchorRef}
+      />
 
       <Composer
         reply={replyTarget}
@@ -695,85 +547,43 @@ export function ChatStage({ chatId, showBack, onBack }) {
         disabled={detailLoading && !chat}
       />
 
-      <MessageContextMenu
-        open={!!ctxMenu}
-        anchor={ctxMenu?.anchor}
-        message={ctxMenu?.message}
+      <ChatStageModals
+        chatId={chatId}
+        chat={chat}
+        searchOpen={searchOpen}
+        onCloseSearch={() => setSearchOpen(false)}
+        onSearchPick={handleSearchPick}
+        ctxMenu={ctxMenu}
+        onCloseCtxMenu={() => setCtxMenu(null)}
         isMine={ctxMenu?.message?.sender_id === user?.id}
-        isDirect={chat?.type === 'direct'}
         canDelete={canDeleteMessage(ctxMenu?.message)}
-        onClose={() => setCtxMenu(null)}
         onReply={() => setReply(chatId, ctxMenu?.message)}
         onCopy={() => copyMessage(ctxMenu?.message)}
         onEdit={() => {
           setReply(chatId, null)
           setEdit(chatId, ctxMenu?.message)
         }}
-        onDelete={() => doDeleteMessage(ctxMenu?.message)}
+        onDeleteRequest={() => setConfirmDeleteMessage(ctxMenu?.message)}
         onForward={() => setForwardSource(ctxMenu?.message)}
         onSaveToSaved={() => doSaveToSaved(ctxMenu?.message)}
         onTogglePin={() => doTogglePin(ctxMenu?.message)}
+        forwardSource={forwardSource}
+        onCloseForward={() => setForwardSource(null)}
+        onPickForward={doPickForward}
+        callStartOpen={callStartOpen}
+        onCloseCallStart={() => setCallStartOpen(false)}
+        onStartCall={handleStartCall}
+        confirmClear={confirmClear}
+        onCloseConfirmClear={() => setConfirmClear(false)}
+        onConfirmClear={doClearHistory}
+        confirmDelete={confirmDelete}
+        onCloseConfirmDelete={() => setConfirmDelete(false)}
+        onConfirmDeleteChat={doDeleteChat}
+        confirmDeleteMessage={confirmDeleteMessage}
+        onCloseConfirmDeleteMessage={() => setConfirmDeleteMessage(null)}
+        onConfirmDeleteMessage={() => doDeleteMessage(confirmDeleteMessage)}
+        busyAction={busyAction}
       />
-
-      <ForwardPickerModal
-        open={!!forwardSource}
-        excludeChatId={chatId}
-        onClose={() => setForwardSource(null)}
-        onPick={doPickForward}
-      />
-
-      <ComingSoonModal
-        open={comingSoonOpen}
-        onClose={() => setComingSoonOpen(false)}
-      />
-
-      <Modal
-        open={confirmClear}
-        onClose={() => setConfirmClear(false)}
-        title="Очистить историю"
-        size="sm"
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setConfirmClear(false)}>
-              Отмена
-            </Button>
-            <Button
-              variant="danger"
-              onClick={doClearHistory}
-              loading={busyAction}
-            >
-              Очистить
-            </Button>
-          </>
-        }
-      >
-        <p style={{ margin: 0 }}>
-          Очистить всю историю сообщений? Это действие нельзя отменить.
-        </p>
-      </Modal>
-
-      <Modal
-        open={confirmDelete}
-        onClose={() => setConfirmDelete(false)}
-        title="Удалить чат"
-        size="sm"
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
-              Отмена
-            </Button>
-            <Button
-              variant="danger"
-              onClick={doDeleteChat}
-              loading={busyAction}
-            >
-              Удалить
-            </Button>
-          </>
-        }
-      >
-        <p style={{ margin: 0 }}>Удалить чат? Сообщения будут удалены.</p>
-      </Modal>
     </div>
   )
 }

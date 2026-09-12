@@ -2,21 +2,18 @@ import { useEffect, useRef, useState } from 'react'
 import { Search, X } from 'lucide-react'
 import { messagesApi } from '../../api/messages.js'
 import { Spinner } from '../../components/Spinner.jsx'
-import { formatMessageTime, formatChatDateSeparator } from '../../lib/format.js'
+import {
+  formatMessageTime,
+  formatChatDateSeparator,
+  mediaTypeLabel,
+} from '../../lib/format.js'
 import styles from './InChatSearch.module.css'
-
-const TYPE_LABELS = {
-  image: 'Фото',
-  video: 'Видео',
-  voice: 'Голосовое сообщение',
-  file: 'Файл',
-}
 
 function snippetFor(message) {
   if (!message) return ''
   if (message.is_deleted) return 'Сообщение удалено'
   if (message.type === 'text') return (message.content ?? '').trim()
-  const label = TYPE_LABELS[message.type] || ''
+  const label = mediaTypeLabel(message.type)
   const caption = (message.content ?? '').trim()
   return caption ? `${label}: ${caption}` : label
 }

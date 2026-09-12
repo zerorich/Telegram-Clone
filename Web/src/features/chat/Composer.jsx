@@ -1,17 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import {
-  Paperclip,
-  SendHorizontal,
-  Mic,
-  X,
-  Image as ImageIcon,
-  Video as VideoIcon,
-  File as FileIcon,
-  Trash2,
-} from 'lucide-react'
-import { formatVoiceDuration } from '../../lib/format.js'
+import { SendHorizontal, Mic } from 'lucide-react'
 import { useUiStore } from '../../store/uiStore.js'
 import { describeError } from '../../api/client.js'
+import { ComposerBanner } from './ComposerBanner.jsx'
+import { ComposerRecording } from './ComposerRecording.jsx'
+import { ComposerAttachMenu } from './ComposerAttachMenu.jsx'
 import styles from './Composer.module.css'
 
 const MAX_VOICE_SECONDS = 600
@@ -167,7 +160,9 @@ export function Composer({
         const elapsed = Math.floor((Date.now() - recordStartRef.current) / 1000)
         setRecordDuration(elapsed)
         if (elapsed >= MAX_VOICE_SECONDS) {
-          finishRecording().catch(() => {})
+          finishRecording().catch((err) => {
+            showToast(describeError(err), { kind: 'error' })
+          })
         }
       }, 250)
       recorder.start(250)
@@ -241,134 +236,41 @@ export function Composer({
   return (
     <div className={styles.wrap}>
       {edit ? (
-        <div className={styles.banner}>
-          <div className={styles.bannerBar} aria-hidden />
-          <div className={styles.bannerBody}>
-            <div className={styles.bannerTitle}>Редактирование</div>
-            <div className={styles.bannerText}>
-              {edit.content?.trim() || 'медиа'}
-            </div>
-          </div>
-          <button
-            type="button"
-            className={styles.bannerClose}
-            aria-label="Отмена редактирования"
-            onClick={onCancelEdit}
-          >
-            <X size={18} />
-          </button>
-        </div>
+        <ComposerBanner mode="edit" target={edit} onCancel={onCancelEdit} />
       ) : reply ? (
-        <div className={styles.banner}>
-          <div className={styles.bannerBar} aria-hidden />
-          <div className={styles.bannerBody}>
-            <div className={styles.bannerTitle}>Ответ на сообщение</div>
-            <div className={styles.bannerText}>
-              {reply.is_deleted
-                ? 'Сообщение удалено'
-                : reply.content?.trim() ||
-                  {
-                    image: 'Фото',
-                    video: 'Видео',
-                    voice: 'Голосовое сообщение',
-                    file: 'Файл',
-                  }[reply.type] ||
-                  ''}
-            </div>
-          </div>
-          <button
-            type="button"
-            className={styles.bannerClose}
-            aria-label="Отменить ответ"
-            onClick={onCancelReply}
-          >
-            <X size={18} />
-          </button>
-        </div>
+        <ComposerBanner mode="reply" target={reply} onCancel={onCancelReply} />
       ) : null}
 
       <form className={styles.composer} onSubmit={submit}>
         {recording ? (
-          <div className={styles.recording}>
-            <span className={styles.recordingDot} />
-            <span className={styles.recordingTime}>
-              {formatVoiceDuration(recordDuration)}
-            </span>
-            <span className={styles.recordingHint}>Запись…</span>
-            <button
-              type="button"
-              className={styles.recordCancel}
-              onClick={cancelRecording}
-              aria-label="Отменить запись"
-            >
-              <Trash2 size={20} />
-            </button>
-            <button
-              type="button"
-              className={styles.sendBtn}
-              onClick={finishRecording}
-              aria-label="Отправить голосовое"
-            >
-              <SendHorizontal size={20} />
-            </button>
-          </div>
+          <ComposerRecording
+            duration={recordDuration}
+            onCancel={cancelRecording}
+            onFinish={finishRecording}
+          />
         ) : (
           <>
-            <div className={styles.attachWrap} data-attach-menu>
-              <button
-                type="button"
-                className={styles.iconBtn}
-                aria-label="Прикрепить"
-                onClick={() => setAttachOpen((v) => !v)}
-                disabled={disabled}
-              >
-                <Paperclip size={22} />
-              </button>
-              {attachOpen ? (
-                <div className={styles.attachMenu} role="menu">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setAttachOpen(false)
-                      imageInputRef.current?.click()
-                    }}
-                  >
-                    <ImageIcon size={18} /> Фото
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setAttachOpen(false)
-                      videoInputRef.current?.click()
-                    }}
-                  >
-                    <VideoIcon size={18} /> Видео
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setAttachOpen(false)
-                      fileInputRef.current?.click()
-                    }}
-                  >
-                    <FileIcon size={18} /> Файл
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setAttachOpen(false)
-                      startRecording()
-                    }}
-                  >
-                    <Mic size={18} /> Голосовое
-                  </button>
-                </div>
-              ) : null}
-            </div>
+            <ComposerAttachMenu
+              open={attachOpen}
+              disabled={disabled}
+              onToggle={() => setAttachOpen((v) => !v)}
+              onPickImage={() => {
+                setAttachOpen(false)
+                imageInputRef.current?.click()
+              }}
+              onPickVideo={() => {
+                setAttachOpen(false)
+                videoInputRef.current?.click()
+              }}
+              onPickFile={() => {
+                setAttachOpen(false)
+                fileInputRef.current?.click()
+              }}
+              onStartRecording={() => {
+                setAttachOpen(false)
+                startRecording()
+              }}
+            />
 
             <textarea
               ref={textareaRef}

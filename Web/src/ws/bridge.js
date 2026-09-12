@@ -1,6 +1,9 @@
 import { wsClient } from './client.js'
 import { useChatsStore } from '../store/chatsStore.js'
 import { useMessagesStore } from '../store/messagesStore.js'
+import { useAuthStore } from '../store/authStore.js'
+import { callManager } from '../lib/callManager.js'
+import { notifyNewMessage } from '../lib/notifications.js'
 
 let installed = false
 
@@ -16,6 +19,13 @@ export function installWsBridge() {
       case 'message.new': {
         useMessagesStore.getState().handleIncomingMessage(data)
         useChatsStore.getState().applyIncomingMessage(data)
+        const chats = useChatsStore.getState().chats
+        const chat = chats.find((c) => c.id === data.chat_id)
+        notifyNewMessage({
+          message: data,
+          chat,
+          currentUserId: useAuthStore.getState().user?.id,
+        })
         break
       }
       case 'message.updated':
@@ -62,6 +72,22 @@ export function installWsBridge() {
       }
       case 'user.online': {
         useChatsStore.getState().setOnline(data.user_id, !!data.is_online)
+        break
+      }
+      case 'call.offer': {
+        callManager.handleOffer(data)
+        break
+      }
+      case 'call.answer': {
+        callManager.handleAnswer(data)
+        break
+      }
+      case 'call.ice': {
+        callManager.handleIce(data)
+        break
+      }
+      case 'call.end': {
+        callManager.handleEnd(data)
         break
       }
       default:

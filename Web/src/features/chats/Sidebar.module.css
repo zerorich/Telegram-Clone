@@ -79,6 +79,17 @@
   background: var(--bg-hover);
 }
 
+.pullHint {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
 .list {
   flex: 1;
   overflow-y: auto;

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { usePullToRefresh } from '../../hooks/usePullToRefresh.js'
 import { Menu, Search, MessageSquarePlus, UsersRound, X } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore.js'
 import { useChatsStore } from '../../store/chatsStore.js'
@@ -23,6 +24,8 @@ export function Sidebar() {
   const [query, setQuery] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
+  const listRef = useRef(null)
+  const { pulling, offset } = usePullToRefresh(listRef, reload)
 
   useEffect(() => {
     function onDoc(e) {
@@ -75,7 +78,22 @@ export function Sidebar() {
         </div>
       </header>
 
-      <div className={styles.list} role="list" aria-label="Список чатов">
+      {pulling && offset > 8 ? (
+        <div
+          className={styles.pullHint}
+          style={{ height: offset }}
+          aria-live="polite"
+        >
+          {offset >= 72 ? 'Отпустите для обновления' : 'Потяните для обновления'}
+        </div>
+      ) : null}
+
+      <div
+        ref={listRef}
+        className={styles.list}
+        role="list"
+        aria-label="Список чатов"
+      >
         {loading && !chats.length ? (
           <div className={styles.center}>
             <Spinner size={28} label="Загрузка" />

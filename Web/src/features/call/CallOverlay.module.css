@@ -1,0 +1,124 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  gap: 24px;
+}
+
+.avatarWrap {
+  position: relative;
+}
+
+.pulse {
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  border: 2px solid var(--brand);
+  animation: pulse 1.6s ease-out infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.15);
+    opacity: 0;
+  }
+}
+
+.name {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0;
+  text-align: center;
+}
+
+.status {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 15px;
+  text-align: center;
+}
+
+.videos {
+  display: grid;
+  gap: 12px;
+  width: min(100%, 640px);
+}
+
+.remoteVideo {
+  width: 100%;
+  max-height: 50vh;
+  border-radius: var(--radius-md);
+  background: var(--bg-elev-2);
+  object-fit: cover;
+}
+
+.localVideo {
+  width: 120px;
+  height: 160px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+  object-fit: cover;
+  justify-self: end;
+}
+
+.controls {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: auto;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.controlBtn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elev-2);
+  color: var(--text);
+}
+
+.controlBtn:hover {
+  background: var(--bg-hover);
+}
+
+.controlBtnActive {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.endBtn {
+  background: var(--danger);
+  color: #fff;
+}
+
+.endBtn:hover {
+  filter: brightness(1.05);
+}
+
+.acceptBtn {
+  background: var(--success);
+  color: #fff;
+}
+
+.acceptBtn:hover {
+  filter: brightness(1.05);
+}
+
+.mediaChoice {
+  display: flex;
+  gap: 12px;
+}

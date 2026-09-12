@@ -1,7 +1,9 @@
 import { create } from 'zustand'
 import { messagesApi } from '../api/messages.js'
+import { describeError } from '../api/client.js'
 import { useAuthStore } from './authStore.js'
 import { useChatsStore } from './chatsStore.js'
+import { useUiStore } from './uiStore.js'
 
 /**
  * Messages are stored per-chat in chronological order (oldest -> newest).
@@ -205,7 +207,9 @@ export const useMessagesStore = create((set, get) => ({
     if (!me) return
     const last = [...slot.messages].reverse().find((m) => m.sender_id !== me && !m.is_read)
     if (!last) return
-    messagesApi.markRead(chatId, last.id).catch(() => {})
+    messagesApi.markRead(chatId, last.id).catch((err) => {
+      useUiStore.getState().showToast(describeError(err), { kind: 'error' })
+    })
   },
 
   async forwardMessage(targetChatId, sourceChatId, messageId) {

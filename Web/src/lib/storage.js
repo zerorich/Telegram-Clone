@@ -2,6 +2,7 @@ const ACCESS_TOKEN = 'tg.access_token'
 const REFRESH_TOKEN = 'tg.refresh_token'
 const USER = 'tg.user'
 const THEME = 'tg.theme'
+const NOTIFICATIONS = 'tg.notifications'
 
 const safe = {
   get(key) {
@@ -60,4 +61,9 @@ export const userStorage = {
 export const themeStorage = {
   get: () => safe.get(THEME) ?? 'system',
   set: (value) => safe.set(THEME, value),
+}
+
+export const notificationStorage = {
+  getEnabled: () => safe.get(NOTIFICATIONS) !== 'off',
+  setEnabled: (on) => safe.set(NOTIFICATIONS, on ? 'on' : 'off'),
 }
