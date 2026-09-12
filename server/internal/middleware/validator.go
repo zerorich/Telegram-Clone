@@ -13,7 +13,7 @@ func ValidateBody(c *fiber.Ctx, dest interface{}) error {
 		return utils.Fail(c, fiber.StatusBadRequest, "invalid request body")
 	}
 	if err := validate.Struct(dest); err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return utils.Fail(c, fiber.StatusBadRequest, "invalid request body")
 	}
 	return nil
 }

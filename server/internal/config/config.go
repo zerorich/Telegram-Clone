@@ -14,28 +14,36 @@ import (
 const defaultJWTSecret = "dev-secret-change-in-production"
 
 type Config struct {
-	Port           string
-	Env            string
-	DatabaseURL    string
-	RedisAddr      string
-	RedisPassword  string
-	RedisTLS       bool
-	RedisDB        int
-	JWTSecret      string
-	JWTAccessTTL   time.Duration
-	JWTRefreshTTL  time.Duration
-	SMTPHost       string
-	SMTPPort       string
-	SMTPUser       string
-	SMTPPassword   string
-	SMTPFrom       string
-	UploadDir      string
-	BaseURL        string
-	CORSOrigins    []string
-	AuthRateLimit  int
-	AuthRateWindow time.Duration
-	MigrationsDir  string
-	DBMaxConns     int
+	Port              string
+	Env               string
+	DatabaseURL       string
+	RedisAddr         string
+	RedisPassword     string
+	RedisTLS          bool
+	RedisDB           int
+	JWTSecret         string
+	JWTAccessTTL      time.Duration
+	JWTRefreshTTL     time.Duration
+	SMTPHost          string
+	SMTPPort          string
+	SMTPUser          string
+	SMTPPassword      string
+	SMTPFrom          string
+	UploadDir         string
+	BaseURL           string
+	CORSOrigins       []string
+	AuthRateLimit     int
+	AuthRateWindow    time.Duration
+	MigrationsDir     string
+	DBMaxConns        int
+	OTPPepper         string
+	OTPExpiry         time.Duration
+	RegistrationTTL   time.Duration
+	OTPMaxAttempts    int
+	OTPLockout        time.Duration
+	WSPingInterval    time.Duration
+	WSReadTimeout     time.Duration
+	FCMServerKey      string
 }
 
 func Load() (*Config, error) {
@@ -93,6 +101,44 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	cfg.OTPExpiry, err = time.ParseDuration(getEnv("OTP_EXPIRY", "10m"))
+	if err != nil {
+		return nil, err
+	}
+	cfg.RegistrationTTL, err = time.ParseDuration(getEnv("REGISTRATION_TTL", "30m"))
+	if err != nil {
+		return nil, err
+	}
+	cfg.OTPLockout, err = time.ParseDuration(getEnv("OTP_LOCKOUT", "15m"))
+	if err != nil {
+		return nil, err
+	}
+	cfg.WSPingInterval, err = time.ParseDuration(getEnv("WS_PING_INTERVAL", "30s"))
+	if err != nil {
+		return nil, err
+	}
+	cfg.WSReadTimeout, err = time.ParseDuration(getEnv("WS_READ_TIMEOUT", "60s"))
+	if err != nil {
+		return nil, err
+	}
+	cfg.OTPMaxAttempts = getEnvInt("OTP_MAX_ATTEMPTS", 5)
+
+	rawOTPPepper := os.Getenv("OTP_PEPPER")
+	if env == "production" {
+		if rawOTPPepper == "" {
+			return nil, errors.New("OTP_PEPPER must be set in production")
+		}
+		cfg.OTPPepper = rawOTPPepper
+	} else {
+		if rawOTPPepper == "" {
+			log.Warn().Msg("OTP_PEPPER not set; using insecure dev fallback. DO NOT use in production.")
+			cfg.OTPPepper = "dev-otp-pepper-change-in-production"
+		} else {
+			cfg.OTPPepper = rawOTPPepper
+		}
+	}
+
+	cfg.FCMServerKey = os.Getenv("FCM_SERVER_KEY")
 
 	origins := getEnv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173")
 	cfg.CORSOrigins = strings.Split(origins, ",")

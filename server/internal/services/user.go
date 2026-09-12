@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"errors"
 
 	"github.com/google/uuid"
 	"github.com/telegramclone/server/internal/models"
@@ -34,7 +33,7 @@ func (s *UserService) UpdateMe(ctx context.Context, userID uuid.UUID, name strin
 			return nil, err
 		}
 		if taken {
-			return nil, errors.New("username already taken")
+			return nil, ErrUsernameTaken
 		}
 	}
 	return s.users.Update(ctx, userID, name, surname, username)
@@ -63,4 +62,8 @@ func (s *UserService) SanitizeUser(u *models.User) *models.User {
 	copy := *u
 	copy.PasswordHash = ""
 	return &copy
+}
+
+func (s *UserService) SavePushToken(ctx context.Context, userID uuid.UUID, token, platform string) error {
+	return s.users.UpdatePushToken(ctx, userID, token, platform)
 }

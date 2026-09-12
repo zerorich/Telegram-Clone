@@ -12,12 +12,6 @@ import (
 	"github.com/telegramclone/server/internal/utils"
 )
 
-var (
-	ErrNotMember          = errors.New("not a chat member")
-	ErrForbidden          = errors.New("forbidden")
-	ErrChatNotFound       = errors.New("chat not found")
-	ErrCannotDeleteSaved  = errors.New("cannot delete saved messages chat")
-)
 
 type ChatService struct {
 	chats *repository.ChatRepository
@@ -96,7 +90,7 @@ func (s *ChatService) Get(ctx context.Context, chatID, userID uuid.UUID) (*model
 
 func (s *ChatService) CreateDirect(ctx context.Context, userID, otherID uuid.UUID) (*models.Chat, error) {
 	if userID == otherID {
-		return nil, errors.New("cannot chat with yourself")
+		return nil, ErrCannotChatSelf
 	}
 	other, err := s.users.GetByID(ctx, otherID)
 	if err != nil {
@@ -188,7 +182,7 @@ func (s *ChatService) CreateGroup(ctx context.Context, userID uuid.UUID, name st
 }
 
 func (s *ChatService) UpdateGroup(ctx context.Context, chatID, userID uuid.UUID, name, avatarURL *string, avatarData []byte) (*models.Chat, error) {
-	if err := s.requireAdmin(ctx, chatID, userID); err != nil {
+	if err := RequireAdmin(s.chats, ctx, chatID, userID); err != nil {
 		return nil, err
 	}
 	if len(avatarData) > 0 {
@@ -206,7 +200,7 @@ func (s *ChatService) UpdateGroup(ctx context.Context, chatID, userID uuid.UUID,
 }
 
 func (s *ChatService) AddMembers(ctx context.Context, chatID, userID uuid.UUID, memberIDs []uuid.UUID) error {
-	if err := s.requireAdmin(ctx, chatID, userID); err != nil {
+	if err := RequireAdmin(s.chats, ctx, chatID, userID); err != nil {
 		return err
 	}
 	chat, err := s.chats.GetByID(ctx, chatID)
@@ -236,7 +230,7 @@ func (s *ChatService) AddMembers(ctx context.Context, chatID, userID uuid.UUID, 
 }
 
 func (s *ChatService) RemoveMember(ctx context.Context, chatID, actorID, targetID uuid.UUID) error {
-	if err := s.requireAdmin(ctx, chatID, actorID); err != nil {
+	if err := RequireAdmin(s.chats, ctx, chatID, actorID); err != nil {
 		return err
 	}
 	return s.chats.RemoveMember(ctx, chatID, targetID)
@@ -265,26 +259,8 @@ func (s *ChatService) GetMemberUserIDs(ctx context.Context, chatID uuid.UUID) ([
 	return ids, nil
 }
 
-func (s *ChatService) requireAdmin(ctx context.Context, chatID, userID uuid.UUID) error {
-	role, err := s.chats.GetMemberRole(ctx, chatID, userID)
-	if err != nil {
-		return ErrNotMember
-	}
-	if role != models.RoleAdmin && role != models.RoleOwner {
-		return ErrForbidden
-	}
-	return nil
-}
-
 func (s *ChatService) EnsureMember(ctx context.Context, chatID, userID uuid.UUID) error {
-	ok, err := s.chats.IsMember(ctx, chatID, userID)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return ErrNotMember
-	}
-	return nil
+	return EnsureMember(s.chats, ctx, chatID, userID)
 }
 
 func uniqueUUIDs(ids []uuid.UUID) []uuid.UUID {

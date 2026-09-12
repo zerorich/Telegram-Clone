@@ -1,0 +1,30 @@
+package services
+
+import "errors"
+
+var (
+	ErrNotVerified            = errors.New("email not verified")
+	ErrInvalidRegistrationTok = errors.New("registration_token invalid or expired")
+	ErrInvalidOTP             = errors.New("invalid or expired OTP")
+	ErrOTPLocked              = errors.New("otp verification locked")
+	ErrInvalidRefreshToken    = errors.New("invalid refresh token")
+	ErrRefreshTokenRevoked    = errors.New("refresh token revoked")
+	ErrAccountExists          = errors.New("account already exists")
+	ErrPhoneInUse             = errors.New("phone already in use")
+	ErrSendOTP                = errors.New("send otp email failed")
+	ErrNotMember              = errors.New("not a chat member")
+	ErrForbidden              = errors.New("forbidden")
+	ErrChatNotFound           = errors.New("chat not found")
+	ErrCannotDeleteSaved      = errors.New("cannot delete saved messages chat")
+	ErrCannotChatSelf         = errors.New("cannot chat with yourself")
+	ErrMessageNotFound        = errors.New("message not found")
+	ErrSourceMessageNotFound  = errors.New("source message not found")
+	ErrCannotForwardDeleted   = errors.New("cannot forward a deleted message")
+	ErrInvalidMessageType     = errors.New("invalid message type")
+	ErrFileTooLarge           = errors.New("file too large")
+	ErrUnsupportedFileType    = errors.New("unsupported file type")
+	ErrUsernameTaken          = errors.New("username already taken")
+	ErrInvalidCursor          = errors.New("invalid cursor")
+	ErrUserNotFound           = errors.New("user not found")
+	ErrFileAccessDenied       = errors.New("file access denied")
+)

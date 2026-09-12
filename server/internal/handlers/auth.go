@@ -1,9 +1,8 @@
 package handlers
 
 import (
-	"errors"
-
 	"github.com/gofiber/fiber/v2"
+	"github.com/telegramclone/server/internal/httperr"
 	"github.com/telegramclone/server/internal/middleware"
 	"github.com/telegramclone/server/internal/services"
 	"github.com/telegramclone/server/internal/utils"
@@ -43,7 +42,7 @@ func (h *AuthHandler) SendCode(c *fiber.Ctx) error {
 		return err
 	}
 	if err := h.auth.SendCode(c.Context(), req.Email); err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, fiber.Map{"message": "OTP sent to email"})
 }
@@ -55,7 +54,7 @@ func (h *AuthHandler) VerifyCode(c *fiber.Ctx) error {
 	}
 	result, err := h.auth.VerifyCode(c.Context(), req.Email, req.Code)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	if result.IsNewUser {
 		return utils.OK(c, fiber.Map{
@@ -79,17 +78,11 @@ func (h *AuthHandler) CompleteProfile(c *fiber.Ctx) error {
 	}
 	regToken := middleware.GetBearerToken(c)
 	if regToken == "" {
-		return utils.Fail(c, fiber.StatusUnauthorized, services.ErrInvalidRegistrationTok.Error())
+		return utils.Fail(c, fiber.StatusUnauthorized, "registration token invalid or expired")
 	}
 	user, tokens, err := h.auth.CompleteProfile(c.Context(), regToken, req.Email, req.Name, req.Phone, req.Surname)
 	if err != nil {
-		if errors.Is(err, services.ErrInvalidRegistrationTok) {
-			return utils.Fail(c, fiber.StatusUnauthorized, err.Error())
-		}
-		if errors.Is(err, services.ErrNotVerified) {
-			return utils.Fail(c, fiber.StatusBadRequest, err.Error())
-		}
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	user.PasswordHash = ""
 	return utils.OK(c, fiber.Map{"user": user, "tokens": tokens})
@@ -102,7 +95,7 @@ func (h *AuthHandler) Refresh(c *fiber.Ctx) error {
 	}
 	tokens, err := h.auth.Refresh(c.Context(), req.RefreshToken)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusUnauthorized, err.Error())
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, tokens)
 }

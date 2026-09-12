@@ -3,6 +3,7 @@ package handlers
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/telegramclone/server/internal/httperr"
 	"github.com/telegramclone/server/internal/middleware"
 	"github.com/telegramclone/server/internal/services"
 	"github.com/telegramclone/server/internal/utils"
@@ -29,7 +30,7 @@ func (h *UserHandler) GetMe(c *fiber.Ctx) error {
 	}
 	user, err := h.users.GetMe(c.Context(), userID)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
+		return httperr.Internal(c, err)
 	}
 	return utils.OK(c, h.users.SanitizeUser(user))
 }
@@ -45,7 +46,7 @@ func (h *UserHandler) UpdateMe(c *fiber.Ctx) error {
 	}
 	user, err := h.users.UpdateMe(c.Context(), userID, req.Name, req.Surname, req.Username)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, h.users.SanitizeUser(user))
 }
@@ -61,16 +62,16 @@ func (h *UserHandler) UploadAvatar(c *fiber.Ctx) error {
 	}
 	f, err := file.Open()
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.BadRequest(c, "invalid avatar file")
 	}
 	defer f.Close()
 	data, err := utils.ReadAllLimited(f, 5<<20)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	user, err := h.users.UploadAvatar(c.Context(), userID, data)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, h.users.SanitizeUser(user))
 }
@@ -82,7 +83,7 @@ func (h *UserHandler) GetByID(c *fiber.Ctx) error {
 	}
 	user, err := h.users.GetByID(c.Context(), id)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
+		return httperr.Internal(c, err)
 	}
 	if user == nil {
 		return utils.Fail(c, fiber.StatusNotFound, "user not found")
@@ -97,7 +98,7 @@ func (h *UserHandler) Search(c *fiber.Ctx) error {
 	}
 	users, err := h.users.Search(c.Context(), q)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
+		return httperr.Internal(c, err)
 	}
 	for i := range users {
 		users[i].PasswordHash = ""

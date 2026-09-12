@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/telegramclone/server/internal/middleware"
+	"github.com/telegramclone/server/internal/repository"
 	"github.com/telegramclone/server/internal/utils"
 )
 
@@ -16,12 +18,7 @@ import (
 // (a) use fetch() with the header, or (b) hit the same route on the protected
 // group and pass `?t=<access_token>` which the route-level auth middleware
 // promotes into an Authorization header before this handler runs.
-//
-// TODO(P1): add per-file membership check (which chat owns the file, is the
-// caller still a member?). For now JWT presence is enough to keep media
-// out of unauthenticated public crawlers.
-func Uploads(uploadDir string) fiber.Handler {
-	// Pre-clean the uploadDir once so the path-prefix check below is stable.
+func Uploads(uploadDir string, fileAccess *repository.FileAccessRepository) fiber.Handler {
 	cleanUploadDir := filepath.Clean(uploadDir)
 
 	return func(c *fiber.Ctx) error {
@@ -30,15 +27,12 @@ func Uploads(uploadDir string) fiber.Handler {
 			return fiber.ErrNotFound
 		}
 
-		// Resolve the requested path against "/" so .. segments get folded
-		// away. If anything remains that's traversal-shaped, reject.
 		cleanRel := path.Clean("/" + rel)
 		if strings.Contains(cleanRel, "..") {
 			return fiber.ErrNotFound
 		}
 
 		full := filepath.Join(cleanUploadDir, filepath.FromSlash(cleanRel))
-		// Defensive prefix check (handles symlink-escape edge cases).
 		fullClean := filepath.Clean(full)
 		if !strings.HasPrefix(fullClean, cleanUploadDir+string(os.PathSeparator)) && fullClean != cleanUploadDir {
 			return fiber.ErrNotFound
@@ -49,14 +43,26 @@ func Uploads(uploadDir string) fiber.Handler {
 			return fiber.ErrNotFound
 		}
 
+		userID, err := middleware.GetUserID(c)
+		if err != nil {
+			return utils.Fail(c, fiber.StatusUnauthorized, "unauthorized")
+		}
+
+		uploadPath := "/uploads/" + filepath.ToSlash(strings.TrimPrefix(cleanRel, "/"))
+		allowed, err := fileAccess.CanAccessUpload(c.Context(), userID, uploadPath)
+		if err != nil {
+			return utils.Fail(c, fiber.StatusInternalServerError, "internal server error")
+		}
+		if !allowed {
+			return utils.Fail(c, fiber.StatusForbidden, "access denied")
+		}
+
 		mime := utils.MIMEFromFilename(fullClean)
 		if mime == "" {
 			mime = "application/octet-stream"
 		}
 		c.Set("Content-Type", mime)
 		c.Set("Accept-Ranges", "bytes")
-		// Private because the route is auth-gated; immutable because every
-		// file is named after its content hash / UUID and never rewritten.
 		c.Set("Cache-Control", "private, max-age=3600, immutable")
 		return c.SendFile(fullClean)
 	}

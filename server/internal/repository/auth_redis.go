@@ -14,6 +14,8 @@ const (
 	keyRegisterPrefix      = "register:"
 	keyVerifiedPrefix      = "verified:"
 	keyRevokedAccessPrefix = "revoked_access:"
+	keyOTPFailPrefix       = "otp_fail:"
+	keyOTPLockPrefix       = "otp_lock:"
 )
 
 type AuthRedisRepository struct {
@@ -90,6 +92,37 @@ func (r *AuthRedisRepository) ClearRegistration(ctx context.Context, email strin
 	pipe := r.rdb.Pipeline()
 	pipe.Del(ctx, keyRegisterPrefix+email)
 	pipe.Del(ctx, keyVerifiedPrefix+email)
+	_, err := pipe.Exec(ctx)
+	return err
+}
+
+func (r *AuthRedisRepository) IsOTPLocked(ctx context.Context, email string) (bool, error) {
+	n, err := r.rdb.Exists(ctx, keyOTPLockPrefix+email).Result()
+	return n > 0, err
+}
+
+func (r *AuthRedisRepository) RecordOTPFailure(ctx context.Context, email string, maxAttempts int, lockout time.Duration) error {
+	failKey := keyOTPFailPrefix + email
+	n, err := r.rdb.Incr(ctx, failKey).Result()
+	if err != nil {
+		return err
+	}
+	if n == 1 {
+		_ = r.rdb.Expire(ctx, failKey, lockout).Err()
+	}
+	if int(n) >= maxAttempts {
+		pipe := r.rdb.Pipeline()
+		pipe.Set(ctx, keyOTPLockPrefix+email, "1", lockout)
+		pipe.Del(ctx, failKey)
+		_, err = pipe.Exec(ctx)
+	}
+	return err
+}
+
+func (r *AuthRedisRepository) ClearOTPFailures(ctx context.Context, email string) error {
+	pipe := r.rdb.Pipeline()
+	pipe.Del(ctx, keyOTPFailPrefix+email)
+	pipe.Del(ctx, keyOTPLockPrefix+email)
 	_, err := pipe.Exec(ctx)
 	return err
 }

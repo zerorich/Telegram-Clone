@@ -168,6 +168,47 @@ func (r *UserRepository) GetByIDs(ctx context.Context, ids []uuid.UUID) (map[uui
 	return result, rows.Err()
 }
 
+func (r *UserRepository) UpdatePushToken(ctx context.Context, id uuid.UUID, token, platform string) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE users SET push_token = $2, push_platform = $3, updated_at = NOW()
+		WHERE id = $1`,
+		id, token, platform,
+	)
+	return err
+}
+
+type PushDevice struct {
+	UserID   uuid.UUID
+	Token    string
+	Platform string
+}
+
+func (r *UserRepository) ListPushTokens(ctx context.Context, ids []uuid.UUID) ([]PushDevice, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, push_token, COALESCE(push_platform, '')
+		FROM users
+		WHERE id = ANY($1) AND push_token IS NOT NULL AND BTRIM(push_token) <> ''`,
+		ids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var devices []PushDevice
+	for rows.Next() {
+		var d PushDevice
+		if err := rows.Scan(&d.UserID, &d.Token, &d.Platform); err != nil {
+			return nil, err
+		}
+		devices = append(devices, d)
+	}
+	return devices, rows.Err()
+}
+
 func (r *UserRepository) ValidateIDsExist(ctx context.Context, ids []uuid.UUID) error {
 	var count int
 	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM users WHERE id = ANY($1)`, ids).Scan(&count)

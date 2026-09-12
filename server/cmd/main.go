@@ -34,7 +34,6 @@ func main() {
 		log.Fatal().Err(err).Msg("load config")
 	}
 
-	// Safety: refuse to start with credentials + wildcard origin.
 	for _, o := range cfg.CORSOrigins {
 		if o == "*" {
 			log.Fatal().Msg("CORS_ORIGINS contains '*' but CORS is configured with AllowCredentials=true; this combination is rejected by browsers and is unsafe")
@@ -67,14 +66,13 @@ func main() {
 	}
 	defer rdb.Close()
 
-	// Repositories
 	userRepo := repository.NewUserRepository(pool)
 	otpRepo := repository.NewOTPRepository(pool)
 	chatRepo := repository.NewChatRepository(pool)
 	messageRepo := repository.NewMessageRepository(pool)
 	authRedis := repository.NewAuthRedisRepository(rdb)
+	fileAccessRepo := repository.NewFileAccessRepository(pool)
 
-	// Utils
 	jwtManager := utils.NewJWTManager(cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
 	emailSender := utils.NewEmailSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPassword, cfg.SMTPFrom)
 	fileStore := utils.NewFileStore(cfg.UploadDir, cfg.BaseURL)
@@ -82,24 +80,28 @@ func main() {
 		log.Fatal().Err(err).Msg("upload dirs")
 	}
 
-	// Services
 	hub := services.NewHub(rdb)
 	if err := hub.Start(ctx); err != nil {
 		log.Fatal().Err(err).Msg("hub start")
 	}
 
 	devMode := cfg.Env == "development"
-	authSvc := services.NewAuthService(userRepo, otpRepo, authRedis, jwtManager, emailSender, cfg.JWTRefreshTTL, devMode)
+	authSvc := services.NewAuthService(
+		userRepo, otpRepo, authRedis, jwtManager, emailSender,
+		cfg.JWTRefreshTTL, cfg.OTPExpiry, cfg.RegistrationTTL,
+		cfg.OTPPepper, cfg.OTPMaxAttempts, cfg.OTPLockout, devMode,
+	)
 	userSvc := services.NewUserService(userRepo, fileStore)
 	chatSvc := services.NewChatService(chatRepo, userRepo, fileStore, hub)
-	msgSvc := services.NewMessageService(messageRepo, chatRepo, userRepo, fileStore, hub)
+	fcmSender := services.NewFCMSender(cfg.FCMServerKey)
+	msgSvc := services.NewMessageService(messageRepo, chatRepo, userRepo, fileStore, hub, fcmSender)
 
-	// Handlers
 	authH := handlers.NewAuthHandler(authSvc)
 	userH := handlers.NewUserHandler(userSvc)
+	deviceH := handlers.NewDeviceHandler(userSvc)
 	chatH := handlers.NewChatHandler(chatSvc)
 	msgH := handlers.NewMessageHandler(msgSvc)
-	wsH := handlers.NewWSHandler(jwtManager, msgSvc, hub, cfg.CORSOrigins)
+	wsH := handlers.NewWSHandler(jwtManager, authRedis, msgSvc, hub, cfg.CORSOrigins, cfg.WSPingInterval, cfg.WSReadTimeout)
 
 	rateLimiter := middleware.NewRateLimiter(cfg.AuthRateLimit, cfg.AuthRateWindow)
 
@@ -109,9 +111,6 @@ func main() {
 	app.Use(recover.New())
 	app.Use(middleware.Logger())
 
-	// CORS: use an exact-match set rather than a comma-joined string so we can
-	// safely keep AllowCredentials=true (the joined-string form was being
-	// echoed back wholesale by the underlying middleware in some setups).
 	allowedOrigins := make(map[string]bool, len(cfg.CORSOrigins))
 	for _, o := range cfg.CORSOrigins {
 		o = strings.TrimSpace(o)
@@ -144,6 +143,9 @@ func main() {
 	users.Get("/search", userH.Search)
 	users.Get("/:id", userH.GetByID)
 
+	devices := protected.Group("/devices")
+	devices.Post("/push-token", deviceH.SavePushToken)
+
 	chats := protected.Group("/chats")
 	chats.Get("/", chatH.List)
 	chats.Get("/saved", chatH.GetSaved)
@@ -163,6 +165,7 @@ func main() {
 	chats.Post("/:id/messages/media", msgH.SendMedia)
 	chats.Post("/:id/messages/read", msgH.MarkRead)
 	chats.Post("/:id/messages/forward", msgH.Forward)
+	chats.Post("/:id/messages/:messageId/save", msgH.SaveToFavorites)
 	chats.Get("/:id/messages/search", msgH.Search)
 	chats.Delete("/:id/messages", msgH.Clear)
 	chats.Get("/:id/pinned", msgH.ListPinned)
@@ -171,19 +174,8 @@ func main() {
 	chats.Patch("/:id/messages/:messageId", msgH.Edit)
 	chats.Delete("/:id/messages/:messageId", msgH.Delete)
 
-	// Uploads: JWT-gated (accepts Authorization header OR ?t=<token>).
-	// Mounted via the same JWTAuth middleware as the protected API group.
-	app.Get("/uploads/*", middleware.JWTAuth(jwtManager, authRedis), handlers.Uploads(cfg.UploadDir))
+	app.Get("/uploads/*", middleware.JWTAuth(jwtManager, authRedis), handlers.Uploads(cfg.UploadDir, fileAccessRepo))
 
-	// WebSocket: pre-upgrade middleware enforces Origin policy and accepts
-	// either the legacy ?token= query (kept for backward compatibility with
-	// the existing web client) or the new `Sec-WebSocket-Protocol: bearer.<token>`
-	// subprotocol. The websocket.New handler runs after auth has succeeded.
-	//
-	// We intentionally do not pass an `Origins` allow-list to websocket.New:
-	// its underlying CheckOrigin rejects requests with an empty Origin (which
-	// is the normal case for native mobile clients), and wsH.Upgrade already
-	// enforces the correct Origin policy (empty allowed, unknown rejected).
 	app.Get("/ws", wsH.Upgrade, websocket.New(wsH.Handle()))
 
 	go func() {
@@ -206,15 +198,9 @@ func main() {
 	} else {
 		log.Info().Msg("server shut down cleanly")
 	}
-	// Hub must stop after Fiber so WS goroutines have a chance to exit on
-	// their own connection close before we tear down the Redis subscriber.
 	hub.Stop()
 }
 
-// resolveMigrationsDir chooses where to load migrations from. If MIGRATIONS_DIR
-// is set in env we trust it; otherwise we fall back to the original heuristic
-// of `./migrations` or `../migrations`, which works for both `go run ./cmd`
-// and `./bin/server.exe` invocations.
 func resolveMigrationsDir(fromConfig string) string {
 	if fromConfig != "" {
 		return fromConfig

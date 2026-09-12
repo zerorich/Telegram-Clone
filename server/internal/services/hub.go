@@ -171,3 +171,7 @@ func (h *Hub) IsOnline(userID uuid.UUID) bool {
 	_, ok := h.clients[userID]
 	return ok
 }
+
+func (h *Hub) SendToUser(ctx context.Context, userID uuid.UUID, msg WSMessage) {
+	h.Broadcast(ctx, []uuid.UUID{userID}, msg)
+}

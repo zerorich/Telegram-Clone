@@ -1,11 +1,11 @@
 package handlers
 
 import (
-	"errors"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/telegramclone/server/internal/httperr"
 	"github.com/telegramclone/server/internal/middleware"
 	"github.com/telegramclone/server/internal/models"
 	"github.com/telegramclone/server/internal/services"
@@ -44,15 +44,12 @@ func (h *MessageHandler) List(c *fiber.Ctx) error {
 	}
 	cursor, err := utils.DecodeCursor(c.Query("cursor"))
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	limit := c.QueryInt("limit", 50)
 	msgs, next, err := h.messages.List(c.Context(), chatID, userID, cursor, limit)
 	if err != nil {
-		if errors.Is(err, services.ErrNotMember) {
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		}
-		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, fiber.Map{
 		"messages":    msgs,
@@ -75,10 +72,7 @@ func (h *MessageHandler) SendText(c *fiber.Ctx) error {
 	}
 	msg, err := h.messages.SendText(c.Context(), chatID, userID, req.Content, req.ReplyToID)
 	if err != nil {
-		if errors.Is(err, services.ErrNotMember) {
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		}
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, msg)
 }
@@ -102,25 +96,17 @@ func (h *MessageHandler) SendMedia(c *fiber.Ctx) error {
 	}
 	f, err := file.Open()
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.BadRequest(c, "invalid file")
 	}
 	defer f.Close()
 
-	maxSize := int64(50 << 20)
-	switch msgType {
-	case models.MessageTypeImage:
-		maxSize = 20 << 20
-	case models.MessageTypeVideo:
-		maxSize = 100 << 20
-	case models.MessageTypeVoice:
-		maxSize = 10 << 20
-	}
+	maxSize := utils.MaxMediaSize(msgType)
 	data, err := utils.ReadAllLimited(f, maxSize)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	if int64(len(data)) > maxSize {
-		return utils.Fail(c, fiber.StatusBadRequest, "file too large")
+		return httperr.Respond(c, services.ErrFileTooLarge)
 	}
 
 	var durationSec *int
@@ -140,13 +126,9 @@ func (h *MessageHandler) SendMedia(c *fiber.Ctx) error {
 		}
 	}
 
-	filename := file.Filename
-	msg, err := h.messages.SendMedia(c.Context(), chatID, userID, msgType, data, filename, durationSec, replyToID)
+	msg, err := h.messages.SendMedia(c.Context(), chatID, userID, msgType, data, file.Filename, durationSec, replyToID)
 	if err != nil {
-		if errors.Is(err, services.ErrNotMember) {
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		}
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, msg)
 }
@@ -170,10 +152,7 @@ func (h *MessageHandler) Edit(c *fiber.Ctx) error {
 	}
 	msg, err := h.messages.EditText(c.Context(), chatID, userID, messageID, req.Content)
 	if err != nil {
-		if errors.Is(err, services.ErrNotMember) {
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		}
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, msg)
 }
@@ -193,10 +172,7 @@ func (h *MessageHandler) Delete(c *fiber.Ctx) error {
 	}
 	msg, err := h.messages.Delete(c.Context(), chatID, userID, messageID)
 	if err != nil {
-		if errors.Is(err, services.ErrNotMember) {
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		}
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, msg)
 }
@@ -215,10 +191,7 @@ func (h *MessageHandler) MarkRead(c *fiber.Ctx) error {
 		return err
 	}
 	if err := h.messages.MarkRead(c.Context(), chatID, userID, req.MessageID); err != nil {
-		if errors.Is(err, services.ErrNotMember) {
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		}
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, fiber.Map{"read": true})
 }
@@ -228,8 +201,6 @@ type forwardReq struct {
 	MessageID    uuid.UUID `json:"message_id" validate:"required"`
 }
 
-// Forward copies a message from `source_chat_id` into the URL chat. Caller
-// must be a member of both. See `MessageService.Forward` for details.
 func (h *MessageHandler) Forward(c *fiber.Ctx) error {
 	userID, err := middleware.GetUserID(c)
 	if err != nil {
@@ -245,10 +216,27 @@ func (h *MessageHandler) Forward(c *fiber.Ctx) error {
 	}
 	msg, err := h.messages.Forward(c.Context(), targetChatID, req.SourceChatID, req.MessageID, userID)
 	if err != nil {
-		if errors.Is(err, services.ErrNotMember) {
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		}
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
+	}
+	return utils.OK(c, msg)
+}
+
+func (h *MessageHandler) SaveToFavorites(c *fiber.Ctx) error {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusUnauthorized, "unauthorized")
+	}
+	sourceChatID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "invalid chat id")
+	}
+	messageID, err := uuid.Parse(c.Params("messageId"))
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "invalid message id")
+	}
+	msg, err := h.messages.SaveToFavorites(c.Context(), sourceChatID, messageID, userID)
+	if err != nil {
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, msg)
 }
@@ -268,15 +256,7 @@ func (h *MessageHandler) Pin(c *fiber.Ctx) error {
 	}
 	msg, err := h.messages.Pin(c.Context(), chatID, messageID, userID)
 	if err != nil {
-		switch {
-		case errors.Is(err, services.ErrNotMember):
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		case errors.Is(err, services.ErrForbidden):
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		case errors.Is(err, services.ErrChatNotFound):
-			return utils.Fail(c, fiber.StatusNotFound, err.Error())
-		}
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, msg)
 }
@@ -296,15 +276,7 @@ func (h *MessageHandler) Unpin(c *fiber.Ctx) error {
 	}
 	msg, err := h.messages.Unpin(c.Context(), chatID, messageID, userID)
 	if err != nil {
-		switch {
-		case errors.Is(err, services.ErrNotMember):
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		case errors.Is(err, services.ErrForbidden):
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		case errors.Is(err, services.ErrChatNotFound):
-			return utils.Fail(c, fiber.StatusNotFound, err.Error())
-		}
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, msg)
 }
@@ -320,10 +292,7 @@ func (h *MessageHandler) ListPinned(c *fiber.Ctx) error {
 	}
 	msgs, err := h.messages.ListPinned(c.Context(), chatID, userID)
 	if err != nil {
-		if errors.Is(err, services.ErrNotMember) {
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		}
-		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
+		return httperr.Respond(c, err)
 	}
 	if msgs == nil {
 		msgs = []models.Message{}
@@ -344,10 +313,7 @@ func (h *MessageHandler) Search(c *fiber.Ctx) error {
 	limit := c.QueryInt("limit", 50)
 	msgs, err := h.messages.Search(c.Context(), chatID, userID, q, limit)
 	if err != nil {
-		if errors.Is(err, services.ErrNotMember) {
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		}
-		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
+		return httperr.Respond(c, err)
 	}
 	if msgs == nil {
 		msgs = []models.Message{}
@@ -355,8 +321,6 @@ func (h *MessageHandler) Search(c *fiber.Ctx) error {
 	return utils.OK(c, fiber.Map{"messages": msgs})
 }
 
-// Clear handles `DELETE /api/chats/:id/messages`. Direct/saved: any member.
-// Group: admin/owner only. See `MessageService.ClearChat` for details.
 func (h *MessageHandler) Clear(c *fiber.Ctx) error {
 	userID, err := middleware.GetUserID(c)
 	if err != nil {
@@ -368,15 +332,7 @@ func (h *MessageHandler) Clear(c *fiber.Ctx) error {
 	}
 	n, err := h.messages.ClearChat(c.Context(), chatID, userID)
 	if err != nil {
-		switch {
-		case errors.Is(err, services.ErrNotMember):
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		case errors.Is(err, services.ErrForbidden):
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		case errors.Is(err, services.ErrChatNotFound):
-			return utils.Fail(c, fiber.StatusNotFound, err.Error())
-		}
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, fiber.Map{"cleared": true, "deleted_count": n})
 }

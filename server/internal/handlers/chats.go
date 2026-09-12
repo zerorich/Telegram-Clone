@@ -2,12 +2,12 @@ package handlers
 
 import (
 	"encoding/json"
-	"errors"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/telegramclone/server/internal/httperr"
 	"github.com/telegramclone/server/internal/middleware"
 	"github.com/telegramclone/server/internal/services"
 	"github.com/telegramclone/server/internal/utils"
@@ -45,7 +45,7 @@ func (h *ChatHandler) List(c *fiber.Ctx) error {
 	}
 	chats, err := h.chats.List(c.Context(), userID)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
+		return httperr.Internal(c, err)
 	}
 	if chats == nil {
 		return utils.OK(c, []any{})
@@ -64,12 +64,13 @@ func (h *ChatHandler) CreateDirect(c *fiber.Ctx) error {
 	}
 	chat, err := h.chats.CreateDirect(c.Context(), userID, req.UserID)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	_, members, err := h.chats.Get(c.Context(), chat.ID, userID)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
+		return httperr.Internal(c, err)
 	}
+	h.chats.SanitizeMembers(members)
 	return utils.OK(c, fiber.Map{
 		"id":         chat.ID,
 		"type":       chat.Type,
@@ -119,7 +120,7 @@ func (h *ChatHandler) CreateGroup(c *fiber.Ctx) error {
 
 	chat, err := h.chats.CreateGroup(c.Context(), userID, name, memberIDs, avatarData)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, chat)
 }
@@ -135,13 +136,7 @@ func (h *ChatHandler) Get(c *fiber.Ctx) error {
 	}
 	chat, members, err := h.chats.Get(c.Context(), chatID, userID)
 	if err != nil {
-		if errors.Is(err, services.ErrNotMember) {
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		}
-		if errors.Is(err, services.ErrChatNotFound) {
-			return utils.Fail(c, fiber.StatusNotFound, err.Error())
-		}
-		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
+		return httperr.Respond(c, err)
 	}
 	h.chats.SanitizeMembers(members)
 	return utils.OK(c, fiber.Map{"chat": chat, "members": members})
@@ -184,10 +179,7 @@ func (h *ChatHandler) Update(c *fiber.Ctx) error {
 
 	chat, err := h.chats.UpdateGroup(c.Context(), chatID, userID, name, nil, avatarData)
 	if err != nil {
-		if errors.Is(err, services.ErrForbidden) {
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		}
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, chat)
 }
@@ -206,10 +198,7 @@ func (h *ChatHandler) AddMembers(c *fiber.Ctx) error {
 		return err
 	}
 	if err := h.chats.AddMembers(c.Context(), chatID, userID, req.MemberIDs); err != nil {
-		if errors.Is(err, services.ErrForbidden) {
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		}
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, fiber.Map{"added": true})
 }
@@ -228,10 +217,7 @@ func (h *ChatHandler) RemoveMember(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, "invalid user id")
 	}
 	if err := h.chats.RemoveMember(c.Context(), chatID, userID, targetID); err != nil {
-		if errors.Is(err, services.ErrForbidden) {
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		}
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, fiber.Map{"removed": true})
 }
@@ -246,7 +232,7 @@ func (h *ChatHandler) Leave(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, "invalid chat id")
 	}
 	if err := h.chats.Leave(c.Context(), chatID, userID); err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, fiber.Map{"left": true})
 }
@@ -261,7 +247,7 @@ func (h *ChatHandler) GetSaved(c *fiber.Ctx) error {
 	}
 	item, err := h.chats.GetSaved(c.Context(), userID)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
+		return httperr.Internal(c, err)
 	}
 	return utils.OK(c, item)
 }
@@ -291,10 +277,7 @@ func (h *ChatHandler) Mute(c *fiber.Ctx) error {
 	}
 	mute, err := h.chats.Mute(c.Context(), chatID, userID, req.Until)
 	if err != nil {
-		if errors.Is(err, services.ErrNotMember) {
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		}
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, mute)
 }
@@ -309,10 +292,7 @@ func (h *ChatHandler) Unmute(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, "invalid chat id")
 	}
 	if err := h.chats.Unmute(c.Context(), chatID, userID); err != nil {
-		if errors.Is(err, services.ErrNotMember) {
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		}
-		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, fiber.Map{"muted": false})
 }
@@ -329,16 +309,7 @@ func (h *ChatHandler) Delete(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, "invalid chat id")
 	}
 	if err := h.chats.Delete(c.Context(), chatID, userID); err != nil {
-		switch {
-		case errors.Is(err, services.ErrCannotDeleteSaved):
-			return utils.Fail(c, fiber.StatusBadRequest, err.Error())
-		case errors.Is(err, services.ErrChatNotFound):
-			return utils.Fail(c, fiber.StatusNotFound, err.Error())
-		case errors.Is(err, services.ErrForbidden):
-			return utils.Fail(c, fiber.StatusForbidden, err.Error())
-		default:
-			return utils.Fail(c, fiber.StatusBadRequest, err.Error())
-		}
+		return httperr.Respond(c, err)
 	}
 	return utils.OK(c, fiber.Map{"deleted": true})
 }

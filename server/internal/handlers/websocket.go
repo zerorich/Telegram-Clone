@@ -10,6 +10,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	fiberws "github.com/gofiber/contrib/websocket"
 	"github.com/google/uuid"
+	"github.com/telegramclone/server/internal/repository"
 	"github.com/telegramclone/server/internal/services"
 	"github.com/telegramclone/server/internal/utils"
 )
@@ -21,15 +22,25 @@ const (
 
 type WSHandler struct {
 	jwt            *utils.JWTManager
+	authRedis      *repository.AuthRedisRepository
 	messages       *services.MessageService
 	hub            *services.Hub
 	allowedOrigins map[string]struct{}
+	pingInterval   time.Duration
+	readTimeout    time.Duration
 }
 
 // NewWSHandler builds the websocket handler. The allowedOrigins list is used to
 // validate the Origin header on incoming upgrade requests (cross-cutting CSRF
 // protection that mirrors the HTTP CORS policy).
-func NewWSHandler(jwt *utils.JWTManager, messages *services.MessageService, hub *services.Hub, allowedOrigins []string) *WSHandler {
+func NewWSHandler(
+	jwt *utils.JWTManager,
+	authRedis *repository.AuthRedisRepository,
+	messages *services.MessageService,
+	hub *services.Hub,
+	allowedOrigins []string,
+	pingInterval, readTimeout time.Duration,
+) *WSHandler {
 	allowed := make(map[string]struct{}, len(allowedOrigins))
 	for _, o := range allowedOrigins {
 		o = strings.TrimSpace(o)
@@ -37,17 +48,12 @@ func NewWSHandler(jwt *utils.JWTManager, messages *services.MessageService, hub 
 			allowed[o] = struct{}{}
 		}
 	}
-	return &WSHandler{jwt: jwt, messages: messages, hub: hub, allowedOrigins: allowed}
+	return &WSHandler{
+		jwt: jwt, authRedis: authRedis, messages: messages, hub: hub,
+		allowedOrigins: allowed, pingInterval: pingInterval, readTimeout: readTimeout,
+	}
 }
 
-// Upgrade is a Fiber middleware that runs BEFORE the websocket.New upgrader.
-// It enforces the Origin policy and pre-extracts the bearer token from either
-// the legacy ?token= query param OR the new `Sec-WebSocket-Protocol: bearer.<token>`
-// subprotocol header. When the subprotocol form is used, we echo it back in the
-// response header so the browser's WebSocket client accepts the 101 handshake
-// (browsers refuse the connection when the server doesn't acknowledge the
-// requested subprotocol). The token itself is stashed in c.Locals for the
-// websocket handler to pick up post-upgrade.
 func (h *WSHandler) Upgrade(c *fiber.Ctx) error {
 	origin := c.Get("Origin")
 	if origin != "" {
@@ -58,15 +64,11 @@ func (h *WSHandler) Upgrade(c *fiber.Ctx) error {
 
 	token := c.Query("token")
 	if token == "" {
-		// Look at requested subprotocols; we accept the first `bearer.<token>` we find.
 		requested := c.Get("Sec-WebSocket-Protocol")
 		for _, proto := range strings.Split(requested, ",") {
 			proto = strings.TrimSpace(proto)
 			if strings.HasPrefix(proto, wsBearerProtocol) {
 				token = strings.TrimPrefix(proto, wsBearerProtocol)
-				// Echo back the chosen subprotocol so the browser accepts the upgrade.
-				// fasthttp/websocket's selectSubprotocol falls through to the response
-				// header when the upgrader's Subprotocols list is nil.
 				c.Set("Sec-WebSocket-Protocol", proto)
 				break
 			}
@@ -80,6 +82,12 @@ func (h *WSHandler) Upgrade(c *fiber.Ctx) error {
 	claims, err := h.jwt.ParseToken(token)
 	if err != nil || claims.TokenType != utils.TokenTypeAccess {
 		return fiber.NewError(fiber.StatusUnauthorized, "invalid or expired token")
+	}
+	if h.authRedis != nil && claims.ID != "" {
+		revoked, err := h.authRedis.IsAccessTokenRevoked(c.Context(), claims.ID)
+		if err == nil && revoked {
+			return fiber.NewError(fiber.StatusUnauthorized, "token revoked")
+		}
 	}
 
 	c.Locals(wsLocalsToken, token)
@@ -115,20 +123,19 @@ func (h *WSHandler) serveConn(userID uuid.UUID, conn *fiberws.Conn) {
 	}()
 
 	conn.SetReadLimit(65536)
-	_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(h.readTimeout))
 	conn.SetPongHandler(func(string) error {
-		return conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return conn.SetReadDeadline(time.Now().Add(h.readTimeout))
 	})
 
 	go func() {
-		ticker := time.NewTicker(30 * time.Second)
+		ticker := time.NewTicker(h.pingInterval)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-done:
 				return
 			case <-ticker.C:
-				// Use the per-connection write lock so we don't race the hub.
 				if err := client.Write(websocket.PingMessage, nil, 10*time.Second); err != nil {
 					return
 				}
@@ -142,11 +149,18 @@ func (h *WSHandler) serveConn(userID uuid.UUID, conn *fiberws.Conn) {
 			break
 		}
 		var incoming struct {
-			Type      string     `json:"type"`
-			ChatID    uuid.UUID  `json:"chat_id"`
-			Content   string     `json:"content"`
-			ReplyToID *uuid.UUID `json:"reply_to_id"`
-			MessageID uuid.UUID  `json:"message_id"`
+			Type      string          `json:"type"`
+			ChatID    uuid.UUID       `json:"chat_id"`
+			Content   string          `json:"content"`
+			ReplyToID *uuid.UUID      `json:"reply_to_id"`
+			MessageID uuid.UUID       `json:"message_id"`
+			CallID    uuid.UUID       `json:"callId"`
+			FromUserID uuid.UUID      `json:"fromUserId"`
+			ToUserID  uuid.UUID       `json:"toUserId"`
+			SDP       string          `json:"sdp"`
+			Media     string          `json:"media"`
+			Candidate json.RawMessage `json:"candidate"`
+			Reason    string          `json:"reason"`
 		}
 		if err := json.Unmarshal(raw, &incoming); err != nil {
 			continue
@@ -164,6 +178,8 @@ func (h *WSHandler) serveConn(userID uuid.UUID, conn *fiberws.Conn) {
 			h.messages.BroadcastTyping(ctx, incoming.ChatID, userID, true)
 		case "typing.stop":
 			h.messages.BroadcastTyping(ctx, incoming.ChatID, userID, false)
+		case "call.offer", "call.answer", "call.ice", "call.end", "call.ring":
+			h.handleCallEvent(ctx, incoming.Type, userID, raw)
 		}
 	}
 }

@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -15,19 +14,19 @@ import (
 	"github.com/telegramclone/server/internal/utils"
 )
 
-var (
-	ErrNotVerified            = errors.New("email not verified")
-	ErrInvalidRegistrationTok = errors.New("registration_token invalid or expired")
-)
-
 type AuthService struct {
-	users     *repository.UserRepository
-	otp       *repository.OTPRepository
-	authRedis *repository.AuthRedisRepository
-	jwt       *utils.JWTManager
-	email     *utils.EmailSender
-	refreshTTL time.Duration
-	devMode   bool
+	users            *repository.UserRepository
+	otp              *repository.OTPRepository
+	authRedis        *repository.AuthRedisRepository
+	jwt              *utils.JWTManager
+	email            *utils.EmailSender
+	refreshTTL       time.Duration
+	otpExpiry        time.Duration
+	registrationTTL  time.Duration
+	otpPepper        string
+	otpMaxAttempts   int
+	otpLockout       time.Duration
+	devMode          bool
 }
 
 func NewAuthService(
@@ -36,12 +35,18 @@ func NewAuthService(
 	authRedis *repository.AuthRedisRepository,
 	jwt *utils.JWTManager,
 	email *utils.EmailSender,
-	refreshTTL time.Duration,
+	refreshTTL, otpExpiry, registrationTTL time.Duration,
+	otpPepper string,
+	otpMaxAttempts int,
+	otpLockout time.Duration,
 	devMode bool,
 ) *AuthService {
 	return &AuthService{
 		users: users, otp: otp, authRedis: authRedis,
-		jwt: jwt, email: email, refreshTTL: refreshTTL, devMode: devMode,
+		jwt: jwt, email: email, refreshTTL: refreshTTL,
+		otpExpiry: otpExpiry, registrationTTL: registrationTTL,
+		otpPepper: otpPepper, otpMaxAttempts: otpMaxAttempts,
+		otpLockout: otpLockout, devMode: devMode,
 	}
 }
 
@@ -65,8 +70,9 @@ func (s *AuthService) SendCode(ctx context.Context, email string) error {
 	if err != nil {
 		return err
 	}
-	expires := time.Now().Add(10 * time.Minute)
-	if _, err := s.otp.Create(ctx, email, code, expires); err != nil {
+	expires := time.Now().Add(s.otpExpiry)
+	codeHash := utils.HashOTP(code, s.otpPepper)
+	if _, err := s.otp.Create(ctx, email, codeHash, expires); err != nil {
 		return err
 	}
 	if err := s.email.SendOTP(email, code); err != nil {
@@ -74,7 +80,7 @@ func (s *AuthService) SendCode(ctx context.Context, email string) error {
 			log.Info().Str("email", email).Str("otp", code).Msg("dev mode: OTP (email send failed)")
 			return nil
 		}
-		return fmt.Errorf("send otp email: %w", err)
+		return ErrSendOTP
 	}
 	if s.devMode {
 		log.Info().Str("email", email).Str("otp", code).Msg("dev mode: OTP sent")
@@ -83,13 +89,25 @@ func (s *AuthService) SendCode(ctx context.Context, email string) error {
 }
 
 func (s *AuthService) VerifyCode(ctx context.Context, email, code string) (*VerifyCodeResult, error) {
-	ok, err := s.otp.Verify(ctx, email, code)
+	locked, err := s.authRedis.IsOTPLocked(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	if locked {
+		return nil, ErrOTPLocked
+	}
+
+	ok, err := s.otp.Verify(ctx, email, code, s.otpPepper)
 	if err != nil {
 		return nil, err
 	}
 	if !ok {
-		return nil, errors.New("invalid or expired OTP")
+		if failErr := s.authRedis.RecordOTPFailure(ctx, email, s.otpMaxAttempts, s.otpLockout); failErr != nil {
+			return nil, failErr
+		}
+		return nil, ErrInvalidOTP
 	}
+	_ = s.authRedis.ClearOTPFailures(ctx, email)
 
 	user, err := s.users.GetByEmail(ctx, email)
 	if err != nil {
@@ -103,7 +121,7 @@ func (s *AuthService) VerifyCode(ctx context.Context, email, code string) (*Veri
 		return &VerifyCodeResult{IsNewUser: false, User: user, Tokens: tokens}, nil
 	}
 
-	if err := s.authRedis.MarkEmailVerified(ctx, email, 30*time.Minute); err != nil {
+	if err := s.authRedis.MarkEmailVerified(ctx, email, s.registrationTTL); err != nil {
 		return nil, err
 	}
 	regToken, err := s.jwt.GenerateRegistrationToken(email)
@@ -135,7 +153,7 @@ func (s *AuthService) CompleteProfile(ctx context.Context, registrationToken, em
 		return nil, nil, err
 	}
 	if existing != nil {
-		return nil, nil, errors.New("account already exists")
+		return nil, nil, ErrAccountExists
 	}
 	if phone == "" {
 		phone = placeholderPhone(email)
@@ -145,7 +163,7 @@ func (s *AuthService) CompleteProfile(ctx context.Context, registrationToken, em
 		return nil, nil, err
 	}
 	if taken {
-		return nil, nil, errors.New("phone already in use")
+		return nil, nil, ErrPhoneInUse
 	}
 
 	user := &models.User{
@@ -177,14 +195,14 @@ func placeholderPhone(email string) string {
 func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*TokenPair, error) {
 	claims, err := s.jwt.ParseToken(refreshToken)
 	if err != nil || claims.TokenType != utils.TokenTypeRefresh {
-		return nil, errors.New("invalid refresh token")
+		return nil, ErrInvalidRefreshToken
 	}
 	ok, err := s.authRedis.ValidateRefreshToken(ctx, claims.UserID, claims.ID)
 	if err != nil {
 		return nil, err
 	}
 	if !ok {
-		return nil, errors.New("refresh token revoked")
+		return nil, ErrRefreshTokenRevoked
 	}
 	_ = s.authRedis.RevokeRefreshToken(ctx, claims.UserID, claims.ID)
 	return s.issueTokens(ctx, claims.UserID)

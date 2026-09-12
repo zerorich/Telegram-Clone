@@ -2,6 +2,8 @@
 
 Production-ready REST + WebSocket API for the messenger app.
 
+Обзор монорепозитория, архитектура и запуск всех клиентов: [`../README.md`](../README.md).
+
 ## Prerequisites
 
 - Go 1.22+
@@ -10,27 +12,32 @@ Production-ready REST + WebSocket API for the messenger app.
 
 ## Quick start
 
-1. Start dependencies (PostgreSQL 16 + Redis 7):
+1. Copy the environment file and set real values — **required** before `docker compose up`,
+   since the compose file reads `POSTGRES_PASSWORD` / `PGADMIN_DEFAULT_PASSWORD` from it and
+   refuses to start with defaults:
+
+```bash
+cp .env.example .env
+# then edit .env: set POSTGRES_PASSWORD, PGADMIN_DEFAULT_PASSWORD, JWT_SECRET, OTP_PEPPER
+```
+
+2. Start dependencies (PostgreSQL 16 + Redis 7 + the API itself):
 
 ```bash
 docker compose up -d
 ```
 
-Optional pgAdmin UI (http://localhost:5050 — `admin@local.dev` / `admin`):
+Optional pgAdmin UI (http://localhost:5050 — email/password from `PGADMIN_DEFAULT_EMAIL` /
+`PGADMIN_DEFAULT_PASSWORD` in `.env`):
 
 ```bash
 docker compose --profile tools up -d
 ```
 
-In pgAdmin, add a server: host `postgres`, port `5432`, user `postgres`, password `postgres`, database `telegramclone`.
+In pgAdmin, add a server: host `postgres`, port `5432`, user `POSTGRES_USER`, password
+`POSTGRES_PASSWORD`, database `POSTGRES_DB` (all from `.env`).
 
-2. Copy environment file and adjust if needed:
-
-```bash
-cp .env.example .env
-```
-
-3. Run the server (from `server/` directory):
+3. Run the server locally instead of via Docker (from `server/` directory) — reads the same `.env`:
 
 ```bash
 go mod tidy

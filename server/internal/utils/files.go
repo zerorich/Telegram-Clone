@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 	_ "image/jpeg"
@@ -15,6 +16,14 @@ import (
 	"github.com/disintegration/imaging"
 	"github.com/google/uuid"
 	_ "golang.org/x/image/webp"
+	"github.com/telegramclone/server/internal/models"
+)
+
+var (
+	ErrFileTooLarge    = errors.New("file too large")
+	ErrUnsupportedMIME = errors.New("unsupported file type")
+	ErrInvalidAvatar   = errors.New("avatar must be JPEG or PNG")
+	ErrAvatarTooLarge  = errors.New("avatar too large")
 )
 
 type MediaCategory string
@@ -167,14 +176,28 @@ func ExtForMIME(mime string) string {
 
 func ValidateMedia(mime string, size int64, allowed []string, maxSize int64) error {
 	if size > maxSize {
-		return fmt.Errorf("file too large")
+		return ErrFileTooLarge
 	}
 	for _, a := range allowed {
 		if mime == a {
 			return nil
 		}
 	}
-	return fmt.Errorf("unsupported file type: %s", mime)
+	return ErrUnsupportedMIME
+}
+
+// MaxMediaSize returns the upload size limit for a message media type.
+func MaxMediaSize(msgType models.MessageType) int64 {
+	switch msgType {
+	case models.MessageTypeImage:
+		return maxImageSize
+	case models.MessageTypeVideo:
+		return maxVideoSize
+	case models.MessageTypeVoice:
+		return maxVoiceSize
+	default:
+		return maxFileSize
+	}
 }
 
 func ReadAllLimited(r io.Reader, max int64) ([]byte, error) {
@@ -184,10 +207,10 @@ func ReadAllLimited(r io.Reader, max int64) ([]byte, error) {
 func ProcessAvatar(data []byte) ([]byte, string, error) {
 	mime := DetectMIME(data)
 	if mime != "image/jpeg" && mime != "image/png" {
-		return nil, "", fmt.Errorf("avatar must be JPEG or PNG")
+		return nil, "", ErrInvalidAvatar
 	}
 	if int64(len(data)) > maxAvatarSize {
-		return nil, "", fmt.Errorf("avatar too large")
+		return nil, "", ErrAvatarTooLarge
 	}
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
